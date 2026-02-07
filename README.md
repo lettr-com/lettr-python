@@ -1,4 +1,4 @@
-# Lettr Python SDK
+# Lettr for Python SDK
 
 The official Python SDK for the [Lettr Email API](https://lettr.com). Send transactional emails with tracking, attachments, templates, and personalization.
 
