@@ -51,7 +51,7 @@ class Projects:
                 team_id=p["team_id"],
                 emoji=p.get("emoji"),
                 created_at=p["created_at"],
-                updated_at=p.get("updated_at"),
+                updated_at=p["updated_at"],
             )
             for p in data["projects"]
         ]

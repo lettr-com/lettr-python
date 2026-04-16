@@ -9,6 +9,7 @@ from .._types import (
     MergeTag,
     MergeTagChild,
     Template,
+    TemplateHtml,
     TemplateList,
     TemplateMergeTags,
 )
@@ -25,6 +26,7 @@ def _parse_merge_tags(raw: list[dict[str, Any]]) -> list[MergeTag]:
                 key=t["key"],
                 required=t.get("required", False),
                 type=t.get("type"),
+                name=t.get("name"),
                 children=children,
             )
         )
@@ -84,7 +86,7 @@ class Templates:
                 project_id=t["project_id"],
                 folder_id=t["folder_id"],
                 created_at=t["created_at"],
-                updated_at=t.get("updated_at"),
+                updated_at=t["updated_at"],
             )
             for t in data["templates"]
         ]
@@ -125,7 +127,7 @@ class Templates:
             created_at=d["created_at"],
             updated_at=d.get("updated_at"),
             active_version=d.get("active_version"),
-            versions_count=d.get("versions_count"),
+            versions_count=d["versions_count"],
             html=d.get("html"),
             json=d.get("json"),
         )
@@ -293,15 +295,16 @@ class Templates:
             project_id=d.get("project_id"),
         )
 
-    def get_html(self, *, project_id: int, slug: str) -> str:
-        """Get the rendered HTML of a template.
+    def get_html(self, *, project_id: int, slug: str) -> TemplateHtml:
+        """Get the rendered HTML and merge tags of a template.
 
         Args:
             project_id: Project ID containing the template.
             slug: The template slug.
 
         Returns:
-            The rendered HTML string.
+            A :class:`TemplateHtml` with ``html``, ``merge_tags``, and
+            ``subject``.
 
         Raises:
             NotFoundError: If the template or project is not found.
@@ -311,4 +314,10 @@ class Templates:
             "slug": slug,
         }
         body = self._client.get("/templates/html", params=params)
-        return body["data"]["html"]
+        d = body["data"]
+        merge_tags = _parse_merge_tags(d.get("merge_tags", []))
+        return TemplateHtml(
+            html=d["html"],
+            merge_tags=merge_tags,
+            subject=d.get("subject"),
+        )

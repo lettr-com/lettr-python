@@ -20,6 +20,10 @@ class AuthenticationError(LettrError):
 class ForbiddenError(LettrError):
     """Raised when access is forbidden (403)."""
 
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)
+
 
 class ValidationError(LettrError):
     """Raised when request validation fails (422)."""
@@ -44,9 +48,17 @@ class ValidationError(LettrError):
 class NotFoundError(LettrError):
     """Raised when a resource is not found (404)."""
 
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)
+
 
 class ConflictError(LettrError):
     """Raised when a resource already exists (409)."""
+
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)
 
 
 class BadRequestError(LettrError):
@@ -91,13 +103,13 @@ def raise_for_status(status_code: int, body: Any) -> None:
         raise AuthenticationError(message)
 
     if status_code == 403:
-        raise ForbiddenError(message)
+        raise ForbiddenError(message=message, error_code=error_code)
 
     if status_code == 404:
-        raise NotFoundError(message)
+        raise NotFoundError(message=message, error_code=error_code)
 
     if status_code == 409:
-        raise ConflictError(message)
+        raise ConflictError(message=message, error_code=error_code)
 
     if status_code == 422:
         raise ValidationError(message=message, errors=body.get("errors"))

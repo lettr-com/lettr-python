@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lettr._types import Template, TemplateList, TemplateMergeTags
+from lettr._types import Template, TemplateHtml, TemplateList, TemplateMergeTags
 from lettr.resources.templates import Templates
 
 
@@ -61,6 +61,7 @@ class TestGet:
                 "active_version": 3,
                 "versions_count": 3,
                 "html": "<h1>Hi</h1>",
+                "updated_at": "2025-06-01",
             }
         }
 
@@ -159,13 +160,36 @@ class TestGetMergeTags:
 class TestGetHtml:
     def test_get_html(self, templates: Templates, mock_client: MagicMock) -> None:
         mock_client.get.return_value = {
-            "data": {"html": "<h1>Welcome!</h1>"}
+            "data": {
+                "html": "<h1>Welcome!</h1>",
+                "merge_tags": [
+                    {"key": "name", "name": "name", "required": True},
+                ],
+                "subject": "Welcome Email",
+            }
         }
 
         result = templates.get_html(project_id=10, slug="welcome")
-        assert result == "<h1>Welcome!</h1>"
+        assert isinstance(result, TemplateHtml)
+        assert result.html == "<h1>Welcome!</h1>"
+        assert result.subject == "Welcome Email"
+        assert result.merge_tags is not None
+        assert len(result.merge_tags) == 1
+        assert result.merge_tags[0].key == "name"
+        assert result.merge_tags[0].name == "name"
 
         params = mock_client.get.call_args.kwargs["params"]
         assert params["project_id"] == 10
         assert params["slug"] == "welcome"
         assert mock_client.get.call_args.args[0] == "/templates/html"
+
+    def test_get_html_empty_merge_tags(self, templates: Templates, mock_client: MagicMock) -> None:
+        mock_client.get.return_value = {
+            "data": {"html": "<p>Hello</p>", "merge_tags": []}
+        }
+
+        result = templates.get_html(project_id=5, slug="simple")
+        assert isinstance(result, TemplateHtml)
+        assert result.html == "<p>Hello</p>"
+        assert result.merge_tags == []
+        assert result.subject is None

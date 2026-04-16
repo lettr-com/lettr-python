@@ -8,7 +8,9 @@ from .._client import ApiClient
 from .._types import (
     DkimInfo,
     DmarcValidationResult,
+    DnsProvider,
     Domain,
+    DomainDnsVerification,
     DomainVerification,
     SpfValidationResult,
     _from_dict,
@@ -40,13 +42,11 @@ class Domains:
                 domain=d["domain"],
                 status=d["status"],
                 status_label=d["status_label"],
-                can_send=d.get("can_send"),
+                can_send=d["can_send"],
                 cname_status=d.get("cname_status"),
                 dkim_status=d.get("dkim_status"),
-                dmarc_status=d.get("dmarc_status"),
-                spf_status=d.get("spf_status"),
-                created_at=d.get("created_at"),
-                updated_at=d.get("updated_at"),
+                created_at=d["created_at"],
+                updated_at=d["updated_at"],
             )
             for d in body["data"]["domains"]
         ]
@@ -65,6 +65,9 @@ class Domains:
         """
         body = self._client.get(f"/domains/{domain}")
         d = body["data"]
+        dns_provider = None
+        if d.get("dns_provider"):
+            dns_provider = _from_dict(DnsProvider, d["dns_provider"])
         return Domain(
             domain=d["domain"],
             status=d["status"],
@@ -77,7 +80,7 @@ class Domains:
             is_primary_domain=d.get("is_primary_domain"),
             tracking_domain=d.get("tracking_domain"),
             dns=d.get("dns"),
-            dns_provider=d.get("dns_provider"),
+            dns_provider=dns_provider,
             created_at=d.get("created_at"),
             updated_at=d.get("updated_at"),
         )
@@ -144,15 +147,19 @@ class Domains:
         if d.get("spf"):
             spf = _from_dict(SpfValidationResult, d["spf"])
 
+        dns = None
+        if d.get("dns"):
+            dns = _from_dict(DomainDnsVerification, d["dns"])
+
         return DomainVerification(
             domain=d["domain"],
             dkim_status=d["dkim_status"],
             cname_status=d["cname_status"],
-            dmarc_status=d.get("dmarc_status"),
-            spf_status=d.get("spf_status"),
-            is_primary_domain=d.get("is_primary_domain"),
+            dmarc_status=d["dmarc_status"],
+            spf_status=d["spf_status"],
+            is_primary_domain=d["is_primary_domain"],
             ownership_verified=d.get("ownership_verified"),
-            dns=d.get("dns"),
+            dns=dns,
             dmarc=dmarc,
             spf=spf,
         )

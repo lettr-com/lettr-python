@@ -141,6 +141,20 @@ class EmailEvent(Email):
     reason: str | None = None
     raw_reason: str | None = None
     error_code: str | None = None
+    bounce_class: int | None = None
+    queue_time: int | None = None
+    outbound_tls: str | None = None
+    num_retries: int | None = None
+    device_token: str | None = None
+    target_link_url: str | None = None
+    target_link_name: str | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
+    initial_pixel: bool | None = None
+    fbtype: str | None = None
+    report_by: str | None = None
+    report_to: str | None = None
+    remote_addr: str | None = None
     campaign_id: str | None = None
     template_id: str | None = None
     template_version: str | None = None
@@ -254,6 +268,16 @@ class SpfValidationResult:
 
 
 @dataclass
+class DnsProvider:
+    """DNS provider information for a domain."""
+
+    provider: str | None = None
+    provider_label: str | None = None
+    nameservers: list[str] | None = None
+    error: str | None = None
+
+
+@dataclass
 class Domain:
     """A sending domain."""
 
@@ -268,10 +292,24 @@ class Domain:
     is_primary_domain: bool | None = None
     tracking_domain: str | None = None
     dns: dict[str, Any] | None = None
-    dns_provider: str | None = None
+    dns_provider: DnsProvider | None = None
     dkim: DkimInfo | None = None
     created_at: str | None = None
     updated_at: str | None = None
+
+
+@dataclass
+class DomainDnsVerification:
+    """DNS verification error details for a domain."""
+
+    dkim_record: str | None = None
+    cname_record: str | None = None
+    dkim_error: str | None = None
+    cname_error: str | None = None
+    dmarc_record: str | None = None
+    dmarc_error: str | None = None
+    spf_record: str | None = None
+    spf_error: str | None = None
 
 
 @dataclass
@@ -281,11 +319,11 @@ class DomainVerification:
     domain: str
     dkim_status: str
     cname_status: str
-    dmarc_status: str | None = None
-    spf_status: str | None = None
-    is_primary_domain: bool | None = None
+    dmarc_status: str
+    spf_status: str
+    is_primary_domain: bool
     ownership_verified: str | None = None
-    dns: dict[str, Any] | None = None
+    dns: DomainDnsVerification | None = None
     dmarc: DmarcValidationResult | None = None
     spf: SpfValidationResult | None = None
 
@@ -331,6 +369,7 @@ class MergeTag:
     key: str
     required: bool = False
     type: str | None = None
+    name: str | None = None
     children: list[MergeTagChild] | None = None
 
 
@@ -371,6 +410,15 @@ class TemplateMergeTags:
     version: int
     merge_tags: list[MergeTag]
     project_id: int | None = None
+
+
+@dataclass
+class TemplateHtml:
+    """Response from the get template HTML endpoint."""
+
+    html: str
+    merge_tags: list[MergeTag] | None = None
+    subject: str | None = None
 
 
 # ---------------------------------------------------------------------------

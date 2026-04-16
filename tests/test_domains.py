@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lettr._types import Domain, DomainVerification
+from lettr._types import Domain, DomainDnsVerification, DomainVerification
 from lettr.resources.domains import Domains
 
 
@@ -28,6 +28,7 @@ class TestList:
                         "cname_status": "valid",
                         "dkim_status": "valid",
                         "created_at": "2025-01-01",
+                        "updated_at": "2025-06-01",
                     }
                 ]
             }
@@ -55,7 +56,12 @@ class TestGet:
                 "is_primary_domain": True,
                 "tracking_domain": "track.example.com",
                 "dns": {"cname": "cname.lettr.com"},
-                "dns_provider": "cloudflare",
+                "dns_provider": {
+                    "provider": "cloudflare",
+                    "provider_label": "Cloudflare",
+                    "nameservers": ["ns1.cloudflare.com", "ns2.cloudflare.com"],
+                    "error": None,
+                },
                 "created_at": "2025-01-01",
                 "updated_at": "2025-06-01",
             }
@@ -66,7 +72,9 @@ class TestGet:
         assert result.dmarc_status == "valid"
         assert result.spf_status == "valid"
         assert result.is_primary_domain is True
-        assert result.dns_provider == "cloudflare"
+        assert result.dns_provider is not None
+        assert result.dns_provider.provider == "cloudflare"
+        assert result.dns_provider.provider_label == "Cloudflare"
 
 
 class TestCreate:
@@ -137,7 +145,12 @@ class TestVerify:
                 "spf_status": "valid",
                 "is_primary_domain": True,
                 "ownership_verified": "2025-01-01",
-                "dns": {"cname": "ok"},
+                "dns": {
+                    "dkim_record": "v=DKIM1; k=rsa; p=MIGfMA0...",
+                    "cname_record": "example.com.d.]sparkpostmail.com",
+                    "dkim_error": None,
+                    "cname_error": None,
+                },
                 "dmarc": {
                     "is_valid": True,
                     "status": "valid",
@@ -162,16 +175,25 @@ class TestVerify:
         assert result.dmarc.policy == "reject"
         assert result.spf is not None
         assert result.spf.includes_sparkpost is True
+        assert isinstance(result.dns, DomainDnsVerification)
+        assert result.dns.dkim_record == "v=DKIM1; k=rsa; p=MIGfMA0..."
+        assert result.dns.cname_error is None
 
-    def test_verify_without_dmarc_spf(self, domains: Domains, mock_client: MagicMock) -> None:
+    def test_verify_without_dmarc_spf_objects(self, domains: Domains, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {
             "data": {
                 "domain": "example.com",
                 "dkim_status": "pending",
                 "cname_status": "pending",
+                "dmarc_status": "unverified",
+                "spf_status": "unverified",
+                "is_primary_domain": False,
             }
         }
 
         result = domains.verify("example.com")
         assert result.dmarc is None
         assert result.spf is None
+        assert result.dmarc_status == "unverified"
+        assert result.spf_status == "unverified"
+        assert result.is_primary_domain is False
