@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .._client import ApiClient
 from .._types import (
@@ -14,8 +14,8 @@ from .._types import (
 )
 
 
-def _parse_merge_tags(raw: List[Dict[str, Any]]) -> List[MergeTag]:
-    tags: List[MergeTag] = []
+def _parse_merge_tags(raw: list[dict[str, Any]]) -> list[MergeTag]:
+    tags: list[MergeTag] = []
     for t in raw:
         children = None
         if t.get("children"):
@@ -49,9 +49,9 @@ class Templates:
     def list(
         self,
         *,
-        project_id: Optional[int] = None,
-        per_page: Optional[int] = None,
-        page: Optional[int] = None,
+        project_id: int | None = None,
+        per_page: int | None = None,
+        page: int | None = None,
     ) -> TemplateList:
         """List email templates with pagination.
 
@@ -64,7 +64,7 @@ class Templates:
         Returns:
             A :class:`TemplateList` with templates and pagination info.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if project_id is not None:
             params["project_id"] = project_id
         if per_page is not None:
@@ -97,7 +97,7 @@ class Templates:
             last_page=pagination["last_page"],
         )
 
-    def get(self, slug: str, *, project_id: Optional[int] = None) -> Template:
+    def get(self, slug: str, *, project_id: int | None = None) -> Template:
         """Get a single template by slug.
 
         Args:
@@ -110,7 +110,7 @@ class Templates:
         Raises:
             NotFoundError: If the template or project is not found.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if project_id is not None:
             params["project_id"] = project_id
 
@@ -134,10 +134,10 @@ class Templates:
         self,
         *,
         name: str,
-        html: Optional[str] = None,
-        json: Optional[str] = None,
-        project_id: Optional[int] = None,
-        folder_id: Optional[int] = None,
+        html: str | None = None,
+        json: str | None = None,
+        project_id: int | None = None,
+        folder_id: int | None = None,
     ) -> Template:
         """Create a new email template.
 
@@ -158,7 +158,7 @@ class Templates:
             ValidationError: If validation fails.
             NotFoundError: If the project or folder is not found.
         """
-        payload: Dict[str, Any] = {"name": name}
+        payload: dict[str, Any] = {"name": name}
         if html is not None:
             payload["html"] = html
         if json is not None:
@@ -190,10 +190,10 @@ class Templates:
         self,
         slug: str,
         *,
-        name: Optional[str] = None,
-        html: Optional[str] = None,
-        json: Optional[str] = None,
-        project_id: Optional[int] = None,
+        name: str | None = None,
+        html: str | None = None,
+        json: str | None = None,
+        project_id: int | None = None,
     ) -> Template:
         """Update an existing email template.
 
@@ -214,7 +214,7 @@ class Templates:
             NotFoundError: If the template or project is not found.
             ValidationError: If validation fails.
         """
-        payload: Dict[str, Any] = {}
+        payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
         if html is not None:
@@ -243,7 +243,7 @@ class Templates:
             updated_at=d.get("updated_at"),
         )
 
-    def delete(self, slug: str, *, project_id: Optional[int] = None) -> None:
+    def delete(self, slug: str, *, project_id: int | None = None) -> None:
         """Permanently delete a template and all its versions.
 
         Args:
@@ -253,7 +253,7 @@ class Templates:
         Raises:
             NotFoundError: If the template or project is not found.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if project_id is not None:
             params["project_id"] = project_id
         self._client.delete(f"/templates/{slug}", params=params)
@@ -262,8 +262,8 @@ class Templates:
         self,
         slug: str,
         *,
-        project_id: Optional[int] = None,
-        version: Optional[int] = None,
+        project_id: int | None = None,
+        version: int | None = None,
     ) -> TemplateMergeTags:
         """Get merge tags for a template version.
 
@@ -278,7 +278,7 @@ class Templates:
         Raises:
             NotFoundError: If the template or project is not found.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if project_id is not None:
             params["project_id"] = project_id
         if version is not None:
@@ -290,4 +290,25 @@ class Templates:
             template_slug=d["template_slug"],
             version=d["version"],
             merge_tags=_parse_merge_tags(d["merge_tags"]),
+            project_id=d.get("project_id"),
         )
+
+    def get_html(self, *, project_id: int, slug: str) -> str:
+        """Get the rendered HTML of a template.
+
+        Args:
+            project_id: Project ID containing the template.
+            slug: The template slug.
+
+        Returns:
+            The rendered HTML string.
+
+        Raises:
+            NotFoundError: If the template or project is not found.
+        """
+        params: dict[str, Any] = {
+            "project_id": project_id,
+            "slug": slug,
+        }
+        body = self._client.get("/templates/html", params=params)
+        return body["data"]["html"]

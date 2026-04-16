@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-from typing import List
+import builtins
 
 from .._client import ApiClient
-from .._types import DkimInfo, Domain, DomainVerification
+from .._types import (
+    DkimInfo,
+    DmarcValidationResult,
+    Domain,
+    DomainVerification,
+    SpfValidationResult,
+    _from_dict,
+)
 
 
 class Domains:
@@ -21,7 +28,7 @@ class Domains:
     def __init__(self, client: ApiClient) -> None:
         self._client = client
 
-    def list(self) -> List[Domain]:
+    def list(self) -> builtins.list[Domain]:
         """List all sending domains.
 
         Returns:
@@ -36,6 +43,8 @@ class Domains:
                 can_send=d.get("can_send"),
                 cname_status=d.get("cname_status"),
                 dkim_status=d.get("dkim_status"),
+                dmarc_status=d.get("dmarc_status"),
+                spf_status=d.get("spf_status"),
                 created_at=d.get("created_at"),
                 updated_at=d.get("updated_at"),
             )
@@ -63,8 +72,12 @@ class Domains:
             can_send=d.get("can_send"),
             cname_status=d.get("cname_status"),
             dkim_status=d.get("dkim_status"),
+            dmarc_status=d.get("dmarc_status"),
+            spf_status=d.get("spf_status"),
+            is_primary_domain=d.get("is_primary_domain"),
             tracking_domain=d.get("tracking_domain"),
             dns=d.get("dns"),
+            dns_provider=d.get("dns_provider"),
             created_at=d.get("created_at"),
             updated_at=d.get("updated_at"),
         )
@@ -89,7 +102,7 @@ class Domains:
         d = body["data"]
         dkim = None
         if d.get("dkim"):
-            dkim = DkimInfo(**d["dkim"])
+            dkim = _from_dict(DkimInfo, d["dkim"])
         return Domain(
             domain=d["domain"],
             status=d["status"],
@@ -109,7 +122,7 @@ class Domains:
         self._client.delete(f"/domains/{domain}")
 
     def verify(self, domain: str) -> DomainVerification:
-        """Verify a domain's DNS records (DKIM and CNAME).
+        """Verify a domain's DNS records (DKIM, CNAME, SPF, DMARC).
 
         Args:
             domain: The domain name to verify.
@@ -122,10 +135,24 @@ class Domains:
         """
         body = self._client.post(f"/domains/{domain}/verify")
         d = body["data"]
+
+        dmarc = None
+        if d.get("dmarc"):
+            dmarc = _from_dict(DmarcValidationResult, d["dmarc"])
+
+        spf = None
+        if d.get("spf"):
+            spf = _from_dict(SpfValidationResult, d["spf"])
+
         return DomainVerification(
             domain=d["domain"],
             dkim_status=d["dkim_status"],
             cname_status=d["cname_status"],
+            dmarc_status=d.get("dmarc_status"),
+            spf_status=d.get("spf_status"),
+            is_primary_domain=d.get("is_primary_domain"),
             ownership_verified=d.get("ownership_verified"),
             dns=d.get("dns"),
+            dmarc=dmarc,
+            spf=spf,
         )

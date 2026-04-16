@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class LettrError(Exception):
@@ -17,13 +17,17 @@ class AuthenticationError(LettrError):
     """Raised when the API key is missing or invalid (401)."""
 
 
+class ForbiddenError(LettrError):
+    """Raised when access is forbidden (403)."""
+
+
 class ValidationError(LettrError):
     """Raised when request validation fails (422)."""
 
     def __init__(
         self,
         message: str,
-        errors: Optional[Dict[str, List[str]]] = None,
+        errors: dict[str, list[str]] | None = None,
     ) -> None:
         self.errors = errors or {}
         super().__init__(message)
@@ -48,7 +52,15 @@ class ConflictError(LettrError):
 class BadRequestError(LettrError):
     """Raised for client-side errors (400)."""
 
-    def __init__(self, message: str, error_code: Optional[str] = None) -> None:
+    def __init__(self, message: str, error_code: str | None = None) -> None:
+        self.error_code = error_code
+        super().__init__(message)
+
+
+class RateLimitError(LettrError):
+    """Raised when rate limit or quota is exceeded (429)."""
+
+    def __init__(self, message: str, error_code: str | None = None) -> None:
         self.error_code = error_code
         super().__init__(message)
 
@@ -56,7 +68,7 @@ class BadRequestError(LettrError):
 class ServerError(LettrError):
     """Raised for server-side errors (500, 502)."""
 
-    def __init__(self, message: str, error_code: Optional[str] = None) -> None:
+    def __init__(self, message: str, error_code: str | None = None) -> None:
         self.error_code = error_code
         super().__init__(message)
 
@@ -72,8 +84,14 @@ def raise_for_status(status_code: int, body: Any) -> None:
     message = body.get("message", "Unknown error")
     error_code = body.get("error_code")
 
+    if status_code == 400:
+        raise BadRequestError(message=message, error_code=error_code)
+
     if status_code == 401:
         raise AuthenticationError(message)
+
+    if status_code == 403:
+        raise ForbiddenError(message)
 
     if status_code == 404:
         raise NotFoundError(message)
@@ -84,8 +102,8 @@ def raise_for_status(status_code: int, body: Any) -> None:
     if status_code == 422:
         raise ValidationError(message=message, errors=body.get("errors"))
 
-    if status_code == 400:
-        raise BadRequestError(message=message, error_code=error_code)
+    if status_code == 429:
+        raise RateLimitError(message=message, error_code=error_code)
 
     if status_code >= 500:
         raise ServerError(message=message, error_code=error_code)

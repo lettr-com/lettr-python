@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 
@@ -23,6 +23,7 @@ class ApiClient:
     ) -> None:
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._timeout = timeout
         self._http = httpx.Client(
             base_url=self._base_url,
             timeout=timeout,
@@ -30,7 +31,7 @@ class ApiClient:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": "lettr-python/0.1.0",
+                "User-Agent": "lettr-python/0.2.0",
             },
         )
 
@@ -41,8 +42,8 @@ class ApiClient:
         method: str,
         path: str,
         *,
-        json: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
     ) -> Any:
         """Send an HTTP request and return the decoded JSON body.
 
@@ -70,23 +71,53 @@ class ApiClient:
         raise_for_status(response.status_code, body)
         return body
 
-    def get(self, path: str, *, params: Optional[Dict[str, Any]] = None) -> Any:
+    def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self.request("GET", path, params=params)
 
-    def post(self, path: str, *, json: Optional[Dict[str, Any]] = None) -> Any:
+    def post(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
         return self.request("POST", path, json=json)
 
-    def put(self, path: str, *, json: Optional[Dict[str, Any]] = None) -> Any:
+    def put(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
         return self.request("PUT", path, json=json)
 
-    def delete(self, path: str, *, params: Optional[Dict[str, Any]] = None) -> Any:
+    def delete(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self.request("DELETE", path, params=params)
+
+    def get_no_auth(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
+        """Send a GET request without the Authorization header.
+
+        Used for endpoints that don't require authentication (e.g. health check).
+        """
+        if params:
+            params = {k: v for k, v in params.items() if v is not None}
+
+        try:
+            response = httpx.get(
+                f"{self._base_url}{path}",
+                params=params,
+                timeout=self._timeout,
+                headers={
+                    "Accept": "application/json",
+                    "User-Agent": "lettr-python/0.2.0",
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise LettrError(f"HTTP request failed: {exc}") from exc
+
+        try:
+            body = response.json()
+        except Exception:
+            raise_for_status(response.status_code, None)
+            return None
+
+        raise_for_status(response.status_code, body)
+        return body
 
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""
         self._http.close()
 
-    def __enter__(self) -> "ApiClient":
+    def __enter__(self) -> ApiClient:
         return self
 
     def __exit__(self, *args: Any) -> None:

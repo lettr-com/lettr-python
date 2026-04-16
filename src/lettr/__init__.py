@@ -16,39 +16,49 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Optional
-
-from ._client import ApiClient, DEFAULT_BASE_URL, DEFAULT_TIMEOUT
+from ._client import DEFAULT_BASE_URL, DEFAULT_TIMEOUT, ApiClient
 from ._exceptions import (
     AuthenticationError,
     BadRequestError,
     ConflictError,
+    ForbiddenError,
     LettrError,
     NotFoundError,
+    RateLimitError,
     ServerError,
     ValidationError,
 )
 from ._types import (
     Attachment,
+    AuthCheck,
+    DkimInfo,
+    DmarcValidationResult,
     Domain,
     DomainVerification,
     Email,
     EmailDetail,
     EmailEvent,
+    EmailEventList,
     EmailList,
     EmailOptions,
+    GeoIp,
+    HealthCheck,
     MergeTag,
+    MergeTagChild,
     Project,
     ProjectList,
+    ScheduledEmail,
     SendEmailResponse,
+    SpfValidationResult,
     Template,
     TemplateList,
     TemplateMergeTags,
+    UserAgentParsed,
     Webhook,
 )
 from .resources import Domains, Emails, Projects, Templates, Webhooks
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     # Client
@@ -58,25 +68,37 @@ __all__ = [
     "AuthenticationError",
     "BadRequestError",
     "ConflictError",
+    "ForbiddenError",
     "NotFoundError",
+    "RateLimitError",
     "ServerError",
     "ValidationError",
     # Types
     "Attachment",
+    "AuthCheck",
+    "DkimInfo",
+    "DmarcValidationResult",
     "Domain",
     "DomainVerification",
     "Email",
     "EmailDetail",
     "EmailEvent",
+    "EmailEventList",
     "EmailList",
     "EmailOptions",
+    "GeoIp",
+    "HealthCheck",
     "MergeTag",
+    "MergeTagChild",
     "Project",
     "ProjectList",
+    "ScheduledEmail",
     "SendEmailResponse",
+    "SpfValidationResult",
     "Template",
     "TemplateList",
     "TemplateMergeTags",
+    "UserAgentParsed",
     "Webhook",
 ]
 
@@ -145,11 +167,37 @@ class Lettr:
         self.projects = Projects(self._client)
         """Project management operations."""
 
+    def health(self) -> HealthCheck:
+        """Check API health. No authentication required.
+
+        Returns:
+            A :class:`HealthCheck` with the API status.
+        """
+        body = self._client.get_no_auth("/health")
+        data = body["data"]
+        return HealthCheck(status=data["status"], timestamp=data["timestamp"])
+
+    def auth_check(self) -> AuthCheck:
+        """Validate the API key and return team information.
+
+        Returns:
+            An :class:`AuthCheck` with team details.
+
+        Raises:
+            AuthenticationError: If the API key is invalid.
+        """
+        body = self._client.get("/auth/check")
+        data = body["data"]
+        return AuthCheck(
+            team_id=data["team_id"],
+            timestamp=data["timestamp"],
+        )
+
     def close(self) -> None:
         """Close the underlying HTTP connection pool."""
         self._client.close()
 
-    def __enter__(self) -> "Lettr":
+    def __enter__(self) -> Lettr:
         return self
 
     def __exit__(self, *args: object) -> None:
