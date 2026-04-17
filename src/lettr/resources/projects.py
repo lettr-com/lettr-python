@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .._client import ApiClient
 from .._types import Project, ProjectList
@@ -22,8 +22,8 @@ class Projects:
     def list(
         self,
         *,
-        per_page: Optional[int] = None,
-        page: Optional[int] = None,
+        per_page: int | None = None,
+        page: int | None = None,
     ) -> ProjectList:
         """List projects with pagination.
 
@@ -34,7 +34,7 @@ class Projects:
         Returns:
             A :class:`ProjectList` with projects and pagination info.
         """
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if per_page is not None:
             params["per_page"] = per_page
         if page is not None:
@@ -51,7 +51,7 @@ class Projects:
                 team_id=p["team_id"],
                 emoji=p.get("emoji"),
                 created_at=p["created_at"],
-                updated_at=p.get("updated_at"),
+                updated_at=p["updated_at"],
             )
             for p in data["projects"]
         ]

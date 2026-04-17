@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lettr"
-version = "0.1.0"
+version = "0.2.0"
 description = "Official Python SDK for the Lettr Email API"
 readme = "README.md"
 license = "MIT"
@@ -30,6 +30,13 @@ classifiers = [
 ]
 dependencies = [
     "httpx>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
 ]
 
 [project.urls]

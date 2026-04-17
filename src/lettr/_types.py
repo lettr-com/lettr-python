@@ -2,8 +2,69 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass, fields
+from typing import Any, TypeVar
+
+T = TypeVar("T")
+
+
+def _from_dict(cls: type[T], data: dict[str, Any]) -> T:
+    """Build a dataclass instance from a dict, ignoring unknown keys.
+
+    Server payloads may add new fields over time; using bare ``cls(**data)``
+    crashes on the first unknown key. This helper filters ``data`` to only
+    the fields declared on ``cls`` so that forward-compatible parsing works.
+    """
+    known = {f.name for f in fields(cls)}  # type: ignore[arg-type]
+    return cls(**{k: v for k, v in data.items() if k in known})
+
+
+# ---------------------------------------------------------------------------
+# Common / shared types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class HealthCheck:
+    """Response from the health check endpoint."""
+
+    status: str
+    timestamp: str
+
+
+@dataclass
+class AuthCheck:
+    """Response from the auth check endpoint."""
+
+    team_id: int
+    timestamp: str
+
+
+@dataclass
+class GeoIp:
+    """Geolocation data associated with an email event."""
+
+    country: str | None = None
+    region: str | None = None
+    city: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    zip: str | None = None
+    postal_code: str | None = None
+
+
+@dataclass
+class UserAgentParsed:
+    """Parsed user-agent data associated with an email event."""
+
+    agent_family: str | None = None
+    device_brand: str | None = None
+    device_family: str | None = None
+    os_family: str | None = None
+    os_version: str | None = None
+    is_mobile: bool | None = None
+    is_proxy: bool | None = None
+    is_prefetched: bool | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -29,13 +90,13 @@ class Attachment:
 class EmailOptions:
     """Delivery options for an email."""
 
-    click_tracking: Optional[bool] = None
-    open_tracking: Optional[bool] = None
-    transactional: Optional[bool] = None
-    inline_css: Optional[bool] = None
-    perform_substitutions: Optional[bool] = None
+    click_tracking: bool | None = None
+    open_tracking: bool | None = None
+    transactional: bool | None = None
+    inline_css: bool | None = None
+    perform_substitutions: bool | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
 
@@ -52,53 +113,119 @@ class SendEmailResponse:
 class Email:
     """A sent email event."""
 
-    event_id: Optional[str] = None
-    timestamp: Optional[str] = None
-    request_id: Optional[str] = None
-    message_id: Optional[str] = None
-    subject: Optional[str] = None
-    friendly_from: Optional[str] = None
-    sending_domain: Optional[str] = None
-    rcpt_to: Optional[str] = None
-    raw_rcpt_to: Optional[str] = None
-    recipient_domain: Optional[str] = None
-    mailbox_provider: Optional[str] = None
-    mailbox_provider_region: Optional[str] = None
-    sending_ip: Optional[str] = None
-    click_tracking: Optional[bool] = None
-    open_tracking: Optional[bool] = None
-    transactional: Optional[bool] = None
-    msg_size: Optional[int] = None
-    injection_time: Optional[str] = None
-    rcpt_meta: Optional[Dict[str, Any]] = None
+    event_id: str | None = None
+    type: str | None = None
+    timestamp: str | None = None
+    request_id: str | None = None
+    message_id: str | None = None
+    subject: str | None = None
+    friendly_from: str | None = None
+    sending_domain: str | None = None
+    rcpt_to: str | None = None
+    raw_rcpt_to: str | None = None
+    recipient_domain: str | None = None
+    mailbox_provider: str | None = None
+    mailbox_provider_region: str | None = None
+    sending_ip: str | None = None
+    click_tracking: bool | None = None
+    open_tracking: bool | None = None
+    transactional: bool | None = None
+    msg_size: int | None = None
+    injection_time: str | None = None
+    rcpt_meta: dict[str, Any] | None = None
 
 
 @dataclass
 class EmailEvent(Email):
     """A detailed email event including type and error info."""
 
-    type: Optional[str] = None
-    reason: Optional[str] = None
-    raw_reason: Optional[str] = None
-    error_code: Optional[str] = None
+    reason: str | None = None
+    raw_reason: str | None = None
+    error_code: str | None = None
+    bounce_class: int | None = None
+    queue_time: int | None = None
+    outbound_tls: str | None = None
+    num_retries: int | None = None
+    device_token: str | None = None
+    target_link_url: str | None = None
+    target_link_name: str | None = None
+    user_agent: str | None = None
+    ip_address: str | None = None
+    initial_pixel: bool | None = None
+    fbtype: str | None = None
+    report_by: str | None = None
+    report_to: str | None = None
+    remote_addr: str | None = None
+    campaign_id: str | None = None
+    template_id: str | None = None
+    template_version: str | None = None
+    ip_pool: str | None = None
+    msg_from: str | None = None
+    rcpt_type: str | None = None
+    rcpt_tags: list[str] | None = None
+    amp_enabled: bool | None = None
+    delv_method: str | None = None
+    recv_method: str | None = None
+    routing_domain: str | None = None
+    scheduled_time: str | None = None
+    ab_test_id: str | None = None
+    ab_test_version: str | None = None
+    geo_ip: GeoIp | None = None
+    user_agent_parsed: UserAgentParsed | None = None
 
 
 @dataclass
 class EmailList:
     """Paginated list of sent emails."""
 
-    results: List[Email]
+    results: list[Email]
     total_count: int
-    next_cursor: Optional[str] = None
+    next_cursor: str | None = None
     per_page: int = 25
+    date_from: str | None = None
+    date_to: str | None = None
 
 
 @dataclass
 class EmailDetail:
-    """Detailed email with all events."""
+    """Detailed email with its delivery events."""
 
-    results: List[EmailEvent]
+    transmission_id: str
+    state: str
+    from_email: str
+    subject: str
+    recipients: list[str]
+    num_recipients: int
+    events: list[EmailEvent]
+    scheduled_at: str | None = None
+    from_name: str | None = None
+
+
+@dataclass
+class EmailEventList:
+    """Paginated list of email events."""
+
+    results: list[EmailEvent]
     total_count: int
+    next_cursor: str | None = None
+    per_page: int = 25
+    date_from: str | None = None
+    date_to: str | None = None
+
+
+@dataclass
+class ScheduledEmail:
+    """A scheduled email transmission (same shape as :class:`EmailDetail`)."""
+
+    transmission_id: str
+    state: str
+    from_email: str
+    subject: str
+    recipients: list[str]
+    num_recipients: int
+    events: list[EmailEvent]
+    scheduled_at: str | None = None
+    from_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +237,45 @@ class EmailDetail:
 class DkimInfo:
     """DKIM configuration for a domain."""
 
-    public: Optional[str] = None
-    selector: Optional[str] = None
-    headers: Optional[str] = None
+    public: str | None = None
+    selector: str | None = None
+    headers: str | None = None
+    signing_domain: str | None = None
+
+
+@dataclass
+class DmarcValidationResult:
+    """DMARC DNS validation result."""
+
+    is_valid: bool | None = None
+    status: str | None = None
+    found_at_domain: str | None = None
+    record: str | None = None
+    policy: str | None = None
+    subdomain_policy: str | None = None
+    error: str | None = None
+    covered_by_parent_policy: bool | None = None
+
+
+@dataclass
+class SpfValidationResult:
+    """SPF DNS validation result."""
+
+    is_valid: bool | None = None
+    status: str | None = None
+    record: str | None = None
+    error: str | None = None
+    includes_sparkpost: bool | None = None
+
+
+@dataclass
+class DnsProvider:
+    """DNS provider information for a domain."""
+
+    provider: str | None = None
+    provider_label: str | None = None
+    nameservers: list[str] | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -122,14 +285,32 @@ class Domain:
     domain: str
     status: str
     status_label: str
-    can_send: Optional[bool] = None
-    cname_status: Optional[str] = None
-    dkim_status: Optional[str] = None
-    tracking_domain: Optional[str] = None
-    dns: Optional[Dict[str, Any]] = None
-    dkim: Optional[DkimInfo] = None
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    can_send: bool | None = None
+    cname_status: str | None = None
+    dkim_status: str | None = None
+    dmarc_status: str | None = None
+    spf_status: str | None = None
+    is_primary_domain: bool | None = None
+    tracking_domain: str | None = None
+    dns: dict[str, Any] | None = None
+    dns_provider: DnsProvider | None = None
+    dkim: DkimInfo | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass
+class DomainDnsVerification:
+    """DNS verification error details for a domain."""
+
+    dkim_record: str | None = None
+    cname_record: str | None = None
+    dkim_error: str | None = None
+    cname_error: str | None = None
+    dmarc_record: str | None = None
+    dmarc_error: str | None = None
+    spf_record: str | None = None
+    spf_error: str | None = None
 
 
 @dataclass
@@ -139,8 +320,13 @@ class DomainVerification:
     domain: str
     dkim_status: str
     cname_status: str
-    ownership_verified: Optional[str] = None
-    dns: Optional[Dict[str, Any]] = None
+    dmarc_status: str
+    spf_status: str
+    is_primary_domain: bool
+    ownership_verified: str | None = None
+    dns: DomainDnsVerification | None = None
+    dmarc: DmarcValidationResult | None = None
+    spf: SpfValidationResult | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -158,10 +344,10 @@ class Webhook:
     enabled: bool
     auth_type: str
     has_auth_credentials: bool
-    event_types: Optional[List[str]] = None
-    last_successful_at: Optional[str] = None
-    last_failure_at: Optional[str] = None
-    last_status: Optional[str] = None
+    event_types: list[str] | None = None
+    last_successful_at: str | None = None
+    last_failure_at: str | None = None
+    last_status: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +360,7 @@ class MergeTagChild:
     """A child merge tag within a loop block."""
 
     key: str
-    type: Optional[str] = None
+    type: str | None = None
 
 
 @dataclass
@@ -183,8 +369,9 @@ class MergeTag:
 
     key: str
     required: bool = False
-    type: Optional[str] = None
-    children: Optional[List[MergeTagChild]] = None
+    type: str | None = None
+    name: str | None = None
+    children: list[MergeTagChild] | None = None
 
 
 @dataclass
@@ -197,19 +384,19 @@ class Template:
     project_id: int
     folder_id: int
     created_at: str
-    updated_at: Optional[str] = None
-    active_version: Optional[int] = None
-    versions_count: Optional[int] = None
-    html: Optional[str] = None
-    json: Optional[str] = None
-    merge_tags: Optional[List[MergeTag]] = None
+    updated_at: str | None = None
+    active_version: int | None = None
+    versions_count: int | None = None
+    html: str | None = None
+    json: str | None = None
+    merge_tags: list[MergeTag] | None = None
 
 
 @dataclass
 class TemplateList:
     """Paginated list of templates."""
 
-    templates: List[Template]
+    templates: list[Template]
     total: int
     per_page: int
     current_page: int
@@ -222,7 +409,17 @@ class TemplateMergeTags:
 
     template_slug: str
     version: int
-    merge_tags: List[MergeTag]
+    merge_tags: list[MergeTag]
+    project_id: int | None = None
+
+
+@dataclass
+class TemplateHtml:
+    """Response from the get template HTML endpoint."""
+
+    html: str
+    merge_tags: list[MergeTag] | None = None
+    subject: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -238,15 +435,15 @@ class Project:
     name: str
     team_id: int
     created_at: str
-    emoji: Optional[str] = None
-    updated_at: Optional[str] = None
+    emoji: str | None = None
+    updated_at: str | None = None
 
 
 @dataclass
 class ProjectList:
     """Paginated list of projects."""
 
-    projects: List[Project]
+    projects: list[Project]
     total: int
     per_page: int
     current_page: int

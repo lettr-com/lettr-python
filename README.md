@@ -25,6 +25,18 @@ client.emails.send(
 
 ## Usage
 
+### Health & Authentication
+
+```python
+# Check API health (no authentication required)
+health = client.health()
+print(health.status)  # "ok"
+
+# Validate your API key
+auth = client.auth_check()
+print(f"Team: {auth.team_name} (ID: {auth.team_id})")
+```
+
 ### Sending Emails
 
 ```python
@@ -58,6 +70,8 @@ response = client.emails.send(
     subject="Your Order Confirmation",
     html="<h1>Order Confirmed</h1>",
     text="Order Confirmed",
+    tag="order-confirmation",
+    headers={"X-Order-Id": "12345"},
     options=lettr.EmailOptions(
         click_tracking=True,
         open_tracking=True,
@@ -96,13 +110,33 @@ response = client.emails.send(
 response = client.emails.send(
     from_email="hello@example.com",
     to=["user@example.com"],
-    subject="Welcome, {{first_name}}!",
     template_slug="welcome-email",
     substitution_data={
         "first_name": "John",
         "company": "Acme Inc",
     },
 )
+```
+
+### Scheduling Emails
+
+```python
+# Schedule an email for future delivery
+response = client.emails.schedule(
+    from_email="sender@example.com",
+    to=["recipient@example.com"],
+    subject="Scheduled Message",
+    html="<p>This was scheduled!</p>",
+    scheduled_at="2025-12-01T10:00:00Z",
+)
+print(f"Scheduled: {response.request_id}")
+
+# Get scheduled email details
+detail = client.emails.get_scheduled(response.request_id)
+print(f"{detail.subject} ({detail.state}) -> {detail.recipients}")
+
+# Cancel a scheduled email
+client.emails.cancel_scheduled("transmission_id")
 ```
 
 ### Listing & Retrieving Emails
@@ -124,8 +158,29 @@ filtered = client.emails.list(from_date="2026-01-01", to_date="2026-01-31")
 
 # Get email details (all events for a transmission)
 detail = client.emails.get("request_id_here")
-for event in detail.results:
+print(f"{detail.subject} -> {detail.recipients} ({detail.state})")
+for event in detail.events:
     print(f"{event.type}: {event.timestamp}")
+```
+
+### Email Events
+
+```python
+# List email events with filtering
+events = client.emails.list_events(
+    events=["delivery", "bounce"],
+    recipients=["user@example.com"],
+    from_date="2025-01-01",
+    to_date="2025-12-31",
+    per_page=50,
+)
+
+for event in events.results:
+    print(f"{event.type}: {event.rcpt_to} at {event.timestamp}")
+    if event.geo_ip:
+        print(f"  Location: {event.geo_ip.city}, {event.geo_ip.country}")
+    if event.user_agent_parsed:
+        print(f"  Client: {event.user_agent_parsed.agent_family}")
 ```
 
 ### Domains
@@ -140,13 +195,16 @@ for domain in domains:
 domain = client.domains.create("example.com")
 print(domain.dkim)  # DKIM config for DNS setup
 
-# Get domain details
+# Get domain details (includes DMARC, SPF, DNS provider info)
 domain = client.domains.get("example.com")
+print(f"DMARC: {domain.dmarc_status}, SPF: {domain.spf_status}")
 
 # Verify DNS records
 verification = client.domains.verify("example.com")
 print(f"DKIM: {verification.dkim_status}")
 print(f"CNAME: {verification.cname_status}")
+print(f"DMARC: {verification.dmarc_status}")
+print(f"SPF: {verification.spf_status}")
 
 # Delete a domain
 client.domains.delete("example.com")
@@ -169,6 +227,9 @@ template = client.templates.create(
 # Get a template
 template = client.templates.get("welcome-email")
 print(template.html)
+
+# Get template HTML
+html = client.templates.get_html(project_id=1, slug="welcome-email")
 
 # Update a template (creates a new version)
 template = client.templates.update(
@@ -193,8 +254,37 @@ webhooks = client.webhooks.list()
 for webhook in webhooks:
     print(f"{webhook.name}: {webhook.url} (enabled: {webhook.enabled})")
 
+# Create a webhook
+webhook = client.webhooks.create(
+    name="My Webhook",
+    url="https://example.com/webhook",
+    auth_type="none",
+    events_mode="selected",
+    events=["delivery", "bounce", "spam_complaint"],
+)
+
+# Create with authentication
+webhook = client.webhooks.create(
+    name="Secure Webhook",
+    url="https://example.com/webhook",
+    auth_type="basic",
+    events_mode="all",
+    auth_username="user",
+    auth_password="secret",
+)
+
+# Update a webhook
+webhook = client.webhooks.update(
+    "webhook-abc123",
+    name="Renamed Webhook",
+    active=False,
+)
+
 # Get webhook details
 webhook = client.webhooks.get("webhook-abc123")
+
+# Delete a webhook
+client.webhooks.delete("webhook-abc123")
 ```
 
 ### Projects
@@ -227,8 +317,12 @@ except lettr.ValidationError as e:
     print(f"Field errors: {e.errors}")
 except lettr.AuthenticationError:
     print("Invalid API key")
+except lettr.ForbiddenError:
+    print("Access forbidden")
 except lettr.NotFoundError as e:
     print(f"Not found: {e.message}")
+except lettr.RateLimitError as e:
+    print(f"Rate limited: {e.message} (code: {e.error_code})")
 except lettr.BadRequestError as e:
     print(f"Bad request: {e.message} (code: {e.error_code})")
 except lettr.ServerError as e:
@@ -241,12 +335,14 @@ except lettr.LettrError as e:
 
 | Exception | HTTP Status | Description |
 |---|---|---|
-| `LettrError` | — | Base exception for all errors |
+| `LettrError` | -- | Base exception for all errors |
 | `AuthenticationError` | 401 | Missing or invalid API key |
+| `ForbiddenError` | 403 | Access forbidden |
 | `ValidationError` | 422 | Request validation failed |
 | `NotFoundError` | 404 | Resource not found |
 | `ConflictError` | 409 | Resource already exists |
 | `BadRequestError` | 400 | Invalid domain or request |
+| `RateLimitError` | 429 | Quota or rate limit exceeded |
 | `ServerError` | 500, 502 | Server-side error |
 
 ## Context Manager
