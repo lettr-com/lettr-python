@@ -179,7 +179,9 @@ class TestVerify:
         assert result.dns.dkim_record == "v=DKIM1; k=rsa; p=MIGfMA0..."
         assert result.dns.cname_error is None
 
-    def test_verify_without_dmarc_spf_objects(self, domains: Domains, mock_client: MagicMock) -> None:
+    def test_verify_without_dmarc_spf_objects(
+        self, domains: Domains, mock_client: MagicMock
+    ) -> None:
         mock_client.post.return_value = {
             "data": {
                 "domain": "example.com",

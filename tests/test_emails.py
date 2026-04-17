@@ -375,9 +375,7 @@ class TestGetScheduled:
         assert result.events == []
         mock_client.get.assert_called_once_with("/emails/scheduled/tr_123")
 
-    def test_get_scheduled_with_events(
-        self, emails: Emails, mock_client: MagicMock
-    ) -> None:
+    def test_get_scheduled_with_events(self, emails: Emails, mock_client: MagicMock) -> None:
         """Regression: events array contains EmailEvent objects, not strings."""
         mock_client.get.return_value = {
             "data": {

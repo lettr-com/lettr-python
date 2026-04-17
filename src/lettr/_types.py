@@ -18,6 +18,7 @@ def _from_dict(cls: type[T], data: dict[str, Any]) -> T:
     known = {f.name for f in fields(cls)}  # type: ignore[arg-type]
     return cls(**{k: v for k, v in data.items() if k in known})
 
+
 # ---------------------------------------------------------------------------
 # Common / shared types
 # ---------------------------------------------------------------------------

@@ -184,9 +184,7 @@ class TestGetHtml:
         assert mock_client.get.call_args.args[0] == "/templates/html"
 
     def test_get_html_empty_merge_tags(self, templates: Templates, mock_client: MagicMock) -> None:
-        mock_client.get.return_value = {
-            "data": {"html": "<p>Hello</p>", "merge_tags": []}
-        }
+        mock_client.get.return_value = {"data": {"html": "<p>Hello</p>", "merge_tags": []}}
 
         result = templates.get_html(project_id=5, slug="simple")
         assert isinstance(result, TemplateHtml)

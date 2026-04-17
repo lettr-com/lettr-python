@@ -31,9 +31,7 @@ WEBHOOK_DATA = {
 
 class TestList:
     def test_list_webhooks(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
-        mock_client.get.return_value = {
-            "data": {"webhooks": [WEBHOOK_DATA]}
-        }
+        mock_client.get.return_value = {"data": {"webhooks": [WEBHOOK_DATA]}}
 
         result = webhooks.list()
         assert len(result) == 1
@@ -114,9 +112,7 @@ class TestCreate:
 
 class TestUpdate:
     def test_update_webhook(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
-        mock_client.put.return_value = {
-            "data": {**WEBHOOK_DATA, "name": "Renamed Hook"}
-        }
+        mock_client.put.return_value = {"data": {**WEBHOOK_DATA, "name": "Renamed Hook"}}
 
         result = webhooks.update("wh_123", name="Renamed Hook", active=False)
         assert result.name == "Renamed Hook"

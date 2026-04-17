@@ -152,8 +152,7 @@ class Lettr:
     ) -> None:
         if not api_key:
             raise ValueError(
-                "The api_key parameter is required. "
-                "Get your API key at https://app.lettr.com"
+                "The api_key parameter is required. Get your API key at https://app.lettr.com"
             )
 
         self._client = ApiClient(api_key=api_key, base_url=base_url, timeout=timeout)

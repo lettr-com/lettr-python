@@ -442,18 +442,18 @@ class Emails:
             params["bounce_classes"] = bounce_classes
 
         body = self._client.get("/emails/events", params=params)
-        events = body["data"]["events"]
+        events_data = body["data"]["events"]
 
-        results = [_parse_email_event(r) for r in events["data"]]
-        pagination = events.get("pagination", {})
+        results = [_parse_email_event(r) for r in events_data["data"]]
+        pagination = events_data.get("pagination", {})
 
         return EmailEventList(
             results=results,
-            total_count=events["total_count"],
+            total_count=events_data["total_count"],
             next_cursor=pagination.get("next_cursor"),
             per_page=pagination.get("per_page", 25),
-            date_from=events.get("from"),
-            date_to=events.get("to"),
+            date_from=events_data.get("from"),
+            date_to=events_data.get("to"),
         )
 
     def schedule(
