@@ -168,7 +168,6 @@ class TestList:
         empty list when the API actually had emails.
         """
         mock_client.get.return_value = {
-            "success": True,
             "message": "Emails retrieved successfully.",
             "data": {
                 "events": {
