@@ -31,7 +31,7 @@ class ApiClient:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": "lettr-python/0.2.0",
+                "User-Agent": "lettr-python/0.3.0",
             },
         )
 
@@ -98,7 +98,7 @@ class ApiClient:
                 timeout=self._timeout,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "lettr-python/0.2.0",
+                    "User-Agent": "lettr-python/0.3.0",
                 },
             )
         except httpx.HTTPError as exc:

@@ -61,7 +61,7 @@ from ._types import (
 )
 from .resources import Domains, Emails, Projects, Templates, Webhooks
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     # Client
