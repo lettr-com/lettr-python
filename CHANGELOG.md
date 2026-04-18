@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Synced with the latest OpenAPI spec: `ListEmailsResponse` and
+  `ListProjectsResponse` no longer carry a top-level `success` flag;
+  `ErrorCode` gained `retrieval_error`, `insufficient_scope`, and
+  `schedule_cancellation_failed`; the webhook event-type typo
+  `engagament.*` was corrected to `engagement.*`. No SDK behavior
+  change — `error_code` values and webhook `events` strings continue
+  to accept any value, so callers don't need to update their code.
+
 ### Fixed
 - `emails.list()`, `emails.get()`, and `emails.list_events()` were reading
   responses at the wrong nesting level and silently returned empty results
