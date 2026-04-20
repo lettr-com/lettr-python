@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lettr"
-version = "0.3.0"
+version = "1.0.0"
 description = "Official Python SDK for the Lettr Email API"
 readme = "README.md"
 license = "MIT"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["email", "transactional", "lettr", "api", "sdk"]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
