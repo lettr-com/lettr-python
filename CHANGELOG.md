@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-04-20
+
+### Changed
+- Marked the SDK as stable (1.0.0). No code-behavior changes since 0.3.0;
+  this release commits to the current public API under semantic versioning.
+  Breaking changes will require a 2.0.0.
+
+## [0.3.0] - 2026-04-20
+
 ### Changed
 - Synced with the latest OpenAPI spec: `ListEmailsResponse` and
   `ListProjectsResponse` no longer carry a top-level `success` flag;
@@ -105,6 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/lettr/lettr-python/compare/v0.3.0...v1.0.0
+[0.3.0]: https://github.com/lettr/lettr-python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lettr/lettr-python/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/lettr/lettr-python/releases/tag/v0.1.0
