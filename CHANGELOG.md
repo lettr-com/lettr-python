@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Webhook event types are now namespaced (e.g. `message.delivery`,
+  `engagement.click`, `unsubscribe.list_unsubscribe`). The SDK continues to
+  pass `events` strings through unchanged, so callers just need to switch to
+  the new names. Docs and tests updated accordingly.
+- `webhooks.update()` now sends the webhook URL as `url` instead of `target`
+  to match the updated API.
+
+### Deprecated
+- `webhooks.update(..., target=...)` — use `url=` instead. `target` still
+  works (mapped to `url` in the request body) but emits a
+  `DeprecationWarning`. Passing both raises `TypeError`.
+
 ## [1.0.0] - 2026-04-20
 
 ### Changed

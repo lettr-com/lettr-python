@@ -22,7 +22,7 @@ WEBHOOK_DATA = {
     "enabled": True,
     "auth_type": "none",
     "has_auth_credentials": False,
-    "event_types": ["delivery", "bounce"],
+    "event_types": ["message.delivery", "message.bounce"],
     "last_successful_at": "2025-06-01",
     "last_failure_at": None,
     "last_status": "200",
@@ -37,7 +37,7 @@ class TestList:
         assert len(result) == 1
         assert isinstance(result[0], Webhook)
         assert result[0].id == "wh_123"
-        assert result[0].event_types == ["delivery", "bounce"]
+        assert result[0].event_types == ["message.delivery", "message.bounce"]
 
 
 class TestGet:
@@ -59,7 +59,7 @@ class TestCreate:
             url="https://example.com/hook",
             auth_type="none",
             events_mode="selected",
-            events=["delivery", "bounce"],
+            events=["message.delivery", "message.bounce"],
         )
 
         assert isinstance(result, Webhook)
@@ -69,7 +69,7 @@ class TestCreate:
         assert payload["name"] == "My Hook"
         assert payload["auth_type"] == "none"
         assert payload["events_mode"] == "selected"
-        assert payload["events"] == ["delivery", "bounce"]
+        assert payload["events"] == ["message.delivery", "message.bounce"]
 
     def test_create_with_basic_auth(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {
@@ -123,10 +123,39 @@ class TestUpdate:
     def test_update_partial(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
         mock_client.put.return_value = {"data": WEBHOOK_DATA}
 
-        webhooks.update("wh_123", events=["delivery"])
+        webhooks.update("wh_123", events=["message.delivery"])
         payload = mock_client.put.call_args.kwargs["json"]
-        assert payload == {"events": ["delivery"]}
+        assert payload == {"events": ["message.delivery"]}
         assert "name" not in payload
+
+    def test_update_with_url(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
+        mock_client.put.return_value = {"data": WEBHOOK_DATA}
+
+        webhooks.update("wh_123", url="https://new.example.com/hook")
+        payload = mock_client.put.call_args.kwargs["json"]
+        assert payload == {"url": "https://new.example.com/hook"}
+
+    def test_update_target_deprecated(
+        self, webhooks: Webhooks, mock_client: MagicMock
+    ) -> None:
+        mock_client.put.return_value = {"data": WEBHOOK_DATA}
+
+        with pytest.warns(DeprecationWarning, match="target"):
+            webhooks.update("wh_123", target="https://legacy.example.com/hook")
+
+        payload = mock_client.put.call_args.kwargs["json"]
+        assert payload == {"url": "https://legacy.example.com/hook"}
+
+    def test_update_url_and_target_conflict(
+        self, webhooks: Webhooks, mock_client: MagicMock
+    ) -> None:
+        with pytest.raises(TypeError, match="both"):
+            webhooks.update(
+                "wh_123",
+                url="https://a.example.com/hook",
+                target="https://b.example.com/hook",
+            )
+        mock_client.put.assert_not_called()
 
 
 class TestDelete:
