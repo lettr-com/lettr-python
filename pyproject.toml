@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lettr"
-version = "1.0.0"
+version = "1.1.0"
 description = "Official Python SDK for the Lettr Email API"
 readme = "README.md"
 license = "MIT"

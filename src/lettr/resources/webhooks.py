@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import warnings
 from typing import Any
 
 from .._client import ApiClient
@@ -93,7 +94,9 @@ class Webhooks:
             oauth_client_id: OAuth2 client ID (when ``auth_type="oauth2"``).
             oauth_client_secret: OAuth2 client secret (when ``auth_type="oauth2"``).
             oauth_token_url: OAuth2 token URL (when ``auth_type="oauth2"``).
-            events: Event types to receive (when ``events_mode="selected"``).
+            events: Namespaced event types to receive (when
+                ``events_mode="selected"``), e.g. ``["message.delivery",
+                "engagement.click"]``.
 
         Returns:
             A :class:`Webhook` with the created webhook details.
@@ -129,6 +132,7 @@ class Webhooks:
         webhook_id: str,
         *,
         name: str | None = None,
+        url: str | None = None,
         target: str | None = None,
         auth_type: str | None = None,
         auth_username: str | None = None,
@@ -146,14 +150,18 @@ class Webhooks:
         Args:
             webhook_id: The webhook ID to update.
             name: New webhook name.
-            target: New webhook URL.
+            url: New webhook URL.
+            target: Deprecated alias for ``url``. Still accepted but emits a
+                :class:`DeprecationWarning`; passing both ``url`` and
+                ``target`` raises :class:`TypeError`.
             auth_type: New authentication type.
             auth_username: New basic auth username.
             auth_password: New basic auth password.
             oauth_token_url: New OAuth2 token URL.
             oauth_client_id: New OAuth2 client ID.
             oauth_client_secret: New OAuth2 client secret.
-            events: New event types to receive.
+            events: New namespaced event types to receive, e.g.
+                ``["message.delivery", "engagement.click"]``.
             active: Enable or disable the webhook.
 
         Returns:
@@ -163,11 +171,21 @@ class Webhooks:
             NotFoundError: If the webhook is not found.
             ValidationError: If validation fails.
         """
+        if target is not None:
+            if url is not None:
+                raise TypeError("Pass either `url` or `target` (deprecated), not both.")
+            warnings.warn(
+                "The `target` parameter is deprecated; use `url` instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            url = target
+
         payload: dict[str, Any] = {}
         if name is not None:
             payload["name"] = name
-        if target is not None:
-            payload["target"] = target
+        if url is not None:
+            payload["url"] = url
         if auth_type is not None:
             payload["auth_type"] = auth_type
         if auth_username is not None:

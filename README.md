@@ -260,7 +260,7 @@ webhook = client.webhooks.create(
     url="https://example.com/webhook",
     auth_type="none",
     events_mode="selected",
-    events=["delivery", "bounce", "spam_complaint"],
+    events=["message.delivery", "message.bounce", "message.spam_complaint"],
 )
 
 # Create with authentication
