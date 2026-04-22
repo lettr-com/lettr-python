@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-04-22
+
 ### Changed
 - Webhook event types are now namespaced (e.g. `message.delivery`,
   `engagement.click`, `unsubscribe.list_unsubscribe`). The SDK continues to
@@ -127,7 +129,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/lettr/lettr-python/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lettr/lettr-python/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/lettr/lettr-python/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/lettr/lettr-python/compare/v0.1.0...v0.2.0

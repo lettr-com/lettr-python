@@ -173,9 +173,7 @@ class Webhooks:
         """
         if target is not None:
             if url is not None:
-                raise TypeError(
-                    "Pass either `url` or `target` (deprecated), not both."
-                )
+                raise TypeError("Pass either `url` or `target` (deprecated), not both.")
             warnings.warn(
                 "The `target` parameter is deprecated; use `url` instead.",
                 DeprecationWarning,

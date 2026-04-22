@@ -135,9 +135,7 @@ class TestUpdate:
         payload = mock_client.put.call_args.kwargs["json"]
         assert payload == {"url": "https://new.example.com/hook"}
 
-    def test_update_target_deprecated(
-        self, webhooks: Webhooks, mock_client: MagicMock
-    ) -> None:
+    def test_update_target_deprecated(self, webhooks: Webhooks, mock_client: MagicMock) -> None:
         mock_client.put.return_value = {"data": WEBHOOK_DATA}
 
         with pytest.warns(DeprecationWarning, match="target"):
