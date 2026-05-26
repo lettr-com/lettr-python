@@ -556,9 +556,7 @@ class AudienceProperties:
         payload: dict[str, Any] = {}
         if not isinstance(fallback_value, _UnsetType):
             payload["fallback_value"] = fallback_value
-        body = self._client.patch(
-            f"/audience/properties/{property_id}", json=payload
-        )
+        body = self._client.patch(f"/audience/properties/{property_id}", json=payload)
         return _parse_property(body["data"])
 
     def delete(self, property_id: str) -> None:

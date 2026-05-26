@@ -132,21 +132,15 @@ class TestAudienceContainer:
 
 class TestLists:
     def test_list(self, lists: AudienceLists, mock_client: MagicMock) -> None:
-        mock_client.get.return_value = {
-            "data": {"lists": [LIST_DATA], "pagination": PAGINATION}
-        }
+        mock_client.get.return_value = {"data": {"lists": [LIST_DATA], "pagination": PAGINATION}}
         page = lists.list()
         assert len(page.lists) == 1
         assert page.lists[0].name == "VIP"
         assert page.total == 1
         mock_client.get.assert_called_once_with("/audience/lists", params={})
 
-    def test_list_forwards_pagination(
-        self, lists: AudienceLists, mock_client: MagicMock
-    ) -> None:
-        mock_client.get.return_value = {
-            "data": {"lists": [], "pagination": PAGINATION}
-        }
+    def test_list_forwards_pagination(self, lists: AudienceLists, mock_client: MagicMock) -> None:
+        mock_client.get.return_value = {"data": {"lists": [], "pagination": PAGINATION}}
         lists.list(per_page=10, page=2)
         params = mock_client.get.call_args.kwargs["params"]
         assert params == {"per_page": 10, "page": 2}
@@ -162,9 +156,7 @@ class TestLists:
         mock_client.post.return_value = {"data": LIST_DATA}
         result = lists.create(name="VIP")
         assert result.name == "VIP"
-        mock_client.post.assert_called_once_with(
-            "/audience/lists", json={"name": "VIP"}
-        )
+        mock_client.post.assert_called_once_with("/audience/lists", json={"name": "VIP"})
 
     def test_update_partial(self, lists: AudienceLists, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": LIST_DATA}
@@ -220,9 +212,7 @@ class TestContacts:
     def test_list_forwards_filters(
         self, contacts: AudienceContacts, mock_client: MagicMock
     ) -> None:
-        mock_client.get.return_value = {
-            "data": {"contacts": [], "pagination": PAGINATION}
-        }
+        mock_client.get.return_value = {"data": {"contacts": [], "pagination": PAGINATION}}
         contacts.list(
             per_page=50,
             page=3,
@@ -247,9 +237,7 @@ class TestContacts:
         assert isinstance(result, AudienceContact)
         mock_client.get.assert_called_once_with("/audience/contacts/contact_1")
 
-    def test_create_minimal(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_create_minimal(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {"data": CONTACT_DATA}
         contacts.create(email="jane@example.com")
         payload = mock_client.post.call_args.kwargs["json"]
@@ -275,9 +263,7 @@ class TestContacts:
         assert payload["properties"] == {"first_name": "Jane"}
         assert payload["double_opt_in"]["template_slug"] == "doi"
 
-    def test_update_partial(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_update_partial(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": CONTACT_DATA}
         contacts.update(
             "contact_1",
@@ -295,12 +281,8 @@ class TestContacts:
         contacts.delete("contact_1")
         mock_client.delete.assert_called_once_with("/audience/contacts/contact_1")
 
-    def test_bulk_create(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
-        mock_client.post.return_value = {
-            "data": {"created": 2, "already_existed": 1}
-        }
+    def test_bulk_create(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
+        mock_client.post.return_value = {"data": {"created": 2, "already_existed": 1}}
         result = contacts.bulk_create(
             emails=["a@example.com", "b@example.com", "c@example.com"],
             list_id="list_1",
@@ -314,47 +296,29 @@ class TestContacts:
 
 
 class TestMemberships:
-    def test_add_to_list(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_add_to_list(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         contacts.add_to_list(contact_id="contact_1", list_id="list_1")
-        mock_client.post.assert_called_once_with(
-            "/audience/contacts/contact_1/lists/list_1"
-        )
+        mock_client.post.assert_called_once_with("/audience/contacts/contact_1/lists/list_1")
 
-    def test_remove_from_list(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_remove_from_list(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         contacts.remove_from_list(contact_id="contact_1", list_id="list_1")
-        mock_client.delete.assert_called_once_with(
-            "/audience/contacts/contact_1/lists/list_1"
-        )
+        mock_client.delete.assert_called_once_with("/audience/contacts/contact_1/lists/list_1")
 
-    def test_subscribe_to_topic(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_subscribe_to_topic(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         contacts.subscribe_to_topic(contact_id="contact_1", topic_id="topic_1")
-        mock_client.post.assert_called_once_with(
-            "/audience/contacts/contact_1/topics/topic_1"
-        )
+        mock_client.post.assert_called_once_with("/audience/contacts/contact_1/topics/topic_1")
 
     def test_unsubscribe_from_topic(
         self, contacts: AudienceContacts, mock_client: MagicMock
     ) -> None:
         contacts.unsubscribe_from_topic(contact_id="contact_1", topic_id="topic_1")
-        mock_client.delete.assert_called_once_with(
-            "/audience/contacts/contact_1/topics/topic_1"
-        )
+        mock_client.delete.assert_called_once_with("/audience/contacts/contact_1/topics/topic_1")
 
-    def test_bulk_attach_lists(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_bulk_attach_lists(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {
             "data": {"attached": 3, "already_attached": 1, "total_pairs": 4}
         }
-        result = contacts.bulk_attach_lists(
-            contact_ids=["c1", "c2"], list_ids=["l1", "l2"]
-        )
+        result = contacts.bulk_attach_lists(contact_ids=["c1", "c2"], list_ids=["l1", "l2"])
         assert isinstance(result, BulkListsAttachResult)
         assert result.attached == 3
         assert result.total_pairs == 4
@@ -363,15 +327,11 @@ class TestMemberships:
             json={"contact_ids": ["c1", "c2"], "list_ids": ["l1", "l2"]},
         )
 
-    def test_bulk_detach_lists(
-        self, contacts: AudienceContacts, mock_client: MagicMock
-    ) -> None:
+    def test_bulk_detach_lists(self, contacts: AudienceContacts, mock_client: MagicMock) -> None:
         mock_client.delete.return_value = {
             "data": {"detached": 2, "not_present": 2, "total_pairs": 4}
         }
-        result = contacts.bulk_detach_lists(
-            contact_ids=["c1", "c2"], list_ids=["l1", "l2"]
-        )
+        result = contacts.bulk_detach_lists(contact_ids=["c1", "c2"], list_ids=["l1", "l2"])
         assert isinstance(result, BulkListsDetachResult)
         assert result.detached == 2
         mock_client.delete.assert_called_once_with(
@@ -387,9 +347,7 @@ class TestMemberships:
 
 class TestTopics:
     def test_list(self, topics: AudienceTopics, mock_client: MagicMock) -> None:
-        mock_client.get.return_value = {
-            "data": {"topics": [TOPIC_DATA], "pagination": PAGINATION}
-        }
+        mock_client.get.return_value = {"data": {"topics": [TOPIC_DATA], "pagination": PAGINATION}}
         page = topics.list()
         assert page.topics[0].visibility == "public"
 
@@ -415,17 +373,13 @@ class TestTopics:
             "visibility": "public",
         }
 
-    def test_update_partial(
-        self, topics: AudienceTopics, mock_client: MagicMock
-    ) -> None:
+    def test_update_partial(self, topics: AudienceTopics, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": TOPIC_DATA}
         topics.update("topic_1", name="Renamed")
         payload = mock_client.patch.call_args.kwargs["json"]
         assert payload == {"name": "Renamed"}
 
-    def test_update_clear_description(
-        self, topics: AudienceTopics, mock_client: MagicMock
-    ) -> None:
+    def test_update_clear_description(self, topics: AudienceTopics, mock_client: MagicMock) -> None:
         """description=None sends `"description": null` to clear the field."""
         mock_client.patch.return_value = {"data": TOPIC_DATA}
         topics.update("topic_1", description=None)
@@ -462,9 +416,7 @@ class TestProperties:
         assert isinstance(result, AudienceProperty)
         mock_client.get.assert_called_once_with("/audience/properties/prop_1")
 
-    def test_create(
-        self, properties: AudienceProperties, mock_client: MagicMock
-    ) -> None:
+    def test_create(self, properties: AudienceProperties, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {"data": PROPERTY_DATA}
         properties.create(name="first_name", type="string", fallback_value="Friend")
         payload = mock_client.post.call_args.kwargs["json"]
@@ -474,9 +426,7 @@ class TestProperties:
             "fallback_value": "Friend",
         }
 
-    def test_update(
-        self, properties: AudienceProperties, mock_client: MagicMock
-    ) -> None:
+    def test_update(self, properties: AudienceProperties, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": PROPERTY_DATA}
         properties.update("prop_1", fallback_value="Guest")
         mock_client.patch.assert_called_once_with(
@@ -492,18 +442,12 @@ class TestProperties:
         payload = mock_client.patch.call_args.kwargs["json"]
         assert payload == {"fallback_value": None}
 
-    def test_update_empty(
-        self, properties: AudienceProperties, mock_client: MagicMock
-    ) -> None:
+    def test_update_empty(self, properties: AudienceProperties, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": PROPERTY_DATA}
         properties.update("prop_1")
-        mock_client.patch.assert_called_once_with(
-            "/audience/properties/prop_1", json={}
-        )
+        mock_client.patch.assert_called_once_with("/audience/properties/prop_1", json={})
 
-    def test_delete(
-        self, properties: AudienceProperties, mock_client: MagicMock
-    ) -> None:
+    def test_delete(self, properties: AudienceProperties, mock_client: MagicMock) -> None:
         properties.delete("prop_1")
         mock_client.delete.assert_called_once_with("/audience/properties/prop_1")
 
@@ -533,11 +477,7 @@ class TestSegments:
         mock_client.post.return_value = {"data": SEGMENT_DATA}
         conditions = {
             "groups": [
-                {
-                    "conditions": [
-                        {"field": "status", "operator": "equals", "value": "subscribed"}
-                    ]
-                }
+                {"conditions": [{"field": "status", "operator": "equals", "value": "subscribed"}]}
             ]
         }
         segments.create(name="Active", conditions=conditions, list_id="list_1")
@@ -548,31 +488,23 @@ class TestSegments:
             "list_id": "list_1",
         }
 
-    def test_update_partial(
-        self, segments: AudienceSegments, mock_client: MagicMock
-    ) -> None:
+    def test_update_partial(self, segments: AudienceSegments, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": SEGMENT_DATA}
         segments.update("seg_1", name="Renamed")
         payload = mock_client.patch.call_args.kwargs["json"]
         assert payload == {"name": "Renamed"}
 
-    def test_update_clear_list_id(
-        self, segments: AudienceSegments, mock_client: MagicMock
-    ) -> None:
+    def test_update_clear_list_id(self, segments: AudienceSegments, mock_client: MagicMock) -> None:
         """list_id=None sends `"list_id": null` to drop the list restriction."""
         mock_client.patch.return_value = {"data": SEGMENT_DATA}
         segments.update("seg_1", list_id=None)
         payload = mock_client.patch.call_args.kwargs["json"]
         assert payload == {"list_id": None}
 
-    def test_update_empty(
-        self, segments: AudienceSegments, mock_client: MagicMock
-    ) -> None:
+    def test_update_empty(self, segments: AudienceSegments, mock_client: MagicMock) -> None:
         mock_client.patch.return_value = {"data": SEGMENT_DATA}
         segments.update("seg_1")
-        mock_client.patch.assert_called_once_with(
-            "/audience/segments/seg_1", json={}
-        )
+        mock_client.patch.assert_called_once_with("/audience/segments/seg_1", json={})
 
     def test_delete(self, segments: AudienceSegments, mock_client: MagicMock) -> None:
         segments.delete("seg_1")
