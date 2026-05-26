@@ -29,8 +29,25 @@ from ._exceptions import (
     ValidationError,
 )
 from ._types import (
+    UNSET,
     Attachment,
+    AudienceContact,
+    AudienceContactListRef,
+    AudienceContactPage,
+    AudienceContactTopicRef,
+    AudienceList,
+    AudienceListPage,
+    AudienceProperty,
+    AudiencePropertyPage,
+    AudienceSegment,
+    AudienceSegmentPage,
+    AudienceTopic,
+    AudienceTopicPage,
     AuthCheck,
+    BulkContactImportResult,
+    BulkDeleteResult,
+    BulkListsAttachResult,
+    BulkListsDetachResult,
     DkimInfo,
     DmarcValidationResult,
     DnsProvider,
@@ -59,9 +76,9 @@ from ._types import (
     UserAgentParsed,
     Webhook,
 )
-from .resources import Domains, Emails, Projects, Templates, Webhooks
+from .resources import Audience, Domains, Emails, Projects, Templates, Webhooks
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # Client
@@ -76,9 +93,27 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "ValidationError",
+    # Sentinels
+    "UNSET",
     # Types
     "Attachment",
+    "AudienceContact",
+    "AudienceContactListRef",
+    "AudienceContactPage",
+    "AudienceContactTopicRef",
+    "AudienceList",
+    "AudienceListPage",
+    "AudienceProperty",
+    "AudiencePropertyPage",
+    "AudienceSegment",
+    "AudienceSegmentPage",
+    "AudienceTopic",
+    "AudienceTopicPage",
     "AuthCheck",
+    "BulkContactImportResult",
+    "BulkDeleteResult",
+    "BulkListsAttachResult",
+    "BulkListsDetachResult",
     "DkimInfo",
     "DmarcValidationResult",
     "DnsProvider",
@@ -171,6 +206,9 @@ class Lettr:
 
         self.projects = Projects(self._client)
         """Project management operations."""
+
+        self.audience = Audience(self._client)
+        """Audience management — lists, contacts, topics, properties, segments."""
 
     def health(self) -> HealthCheck:
         """Check API health. No authentication required.

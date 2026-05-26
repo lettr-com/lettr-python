@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-26
+
+### Added
+- Audience API — wraps all `/audience/*` endpoints under
+  `client.audience.<sub>`:
+  - `client.audience.lists` — list, get, create, update, delete, bulk_delete
+  - `client.audience.contacts` — list (with `search`/`status`/`list_id`/
+    `segment_id` filters), get, create (with optional `double_opt_in`),
+    update, delete, bulk_create, plus membership ops `add_to_list` /
+    `remove_from_list` / `subscribe_to_topic` / `unsubscribe_from_topic`
+    (keyword-only to prevent `contact_id` / `list_id` transposition) and
+    `bulk_attach_lists` / `bulk_detach_lists`
+  - `client.audience.topics` — list, get, create, update, delete
+  - `client.audience.properties` — list, get, create, update, delete
+  - `client.audience.segments` — list (with `list_id` filter), get, create,
+    update, delete
+- `UNSET` sentinel exported from `lettr` — pass to `topics.update`,
+  `properties.update`, or `segments.update` to leave a field unchanged;
+  pass `None` to explicitly clear a nullable field (`description`,
+  `fallback_value`, `list_id`).
+- `ApiClient.patch()` method and `json` body support on `ApiClient.delete()`
+  to back the new audience endpoints (PATCH for updates, DELETE with a
+  body for bulk endpoints).
+
+### Notes
+- `audience/confirm/{token}` is intentionally not wrapped (intended for
+  end-user confirmation flow, not SDK usage).
+
 ## [1.1.0] - 2026-04-22
 
 ### Changed

@@ -3,9 +3,37 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
-from typing import Any, TypeVar
+from typing import Any, Final, TypeVar
 
 T = TypeVar("T")
+
+
+class _UnsetType:
+    """Sentinel type for fields that were not provided.
+
+    Used by update methods to distinguish "field not provided" (the default)
+    from "set to null". Do not instantiate — use the singleton :data:`UNSET`.
+    """
+
+    _instance: _UnsetType | None = None
+
+    def __new__(cls) -> _UnsetType:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __repr__(self) -> str:
+        return "UNSET"
+
+
+UNSET: Final[_UnsetType] = _UnsetType()
+"""Sentinel meaning "field not provided".
+
+Pass to an update method's keyword to leave the field unchanged, or pass
+``None`` to explicitly clear a nullable field. Importing::
+
+    from lettr import UNSET
+"""
 
 
 def _from_dict(cls: type[T], data: dict[str, Any]) -> T:
@@ -448,3 +476,175 @@ class ProjectList:
     per_page: int
     current_page: int
     last_page: int
+
+
+# ---------------------------------------------------------------------------
+# Audience types
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AudienceList:
+    """An audience list."""
+
+    id: str
+    name: str
+    contacts_count: int
+
+
+@dataclass
+class AudienceListPage:
+    """Paginated list of audience lists."""
+
+    lists: list[AudienceList]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class AudienceContactListRef:
+    """A list reference embedded in a contact."""
+
+    id: str
+    name: str
+
+
+@dataclass
+class AudienceContactTopicRef:
+    """A topic reference embedded in a contact."""
+
+    id: str
+    name: str
+
+
+@dataclass
+class AudienceContact:
+    """An audience contact."""
+
+    id: str
+    email: str
+    status: str
+    properties: dict[str, str]
+    created_at: str
+    lists: list[AudienceContactListRef]
+    topics: list[AudienceContactTopicRef]
+
+
+@dataclass
+class AudienceContactPage:
+    """Paginated list of audience contacts."""
+
+    contacts: list[AudienceContact]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class AudienceTopic:
+    """An audience topic."""
+
+    id: str
+    name: str
+    default_subscription: str
+    visibility: str
+    contacts_count: int
+    description: str | None = None
+    created_at: str | None = None
+
+
+@dataclass
+class AudienceTopicPage:
+    """Paginated list of audience topics."""
+
+    topics: list[AudienceTopic]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class AudienceProperty:
+    """An audience custom property definition."""
+
+    id: str
+    name: str
+    type: str
+    created_at: str
+    fallback_value: str | None = None
+
+
+@dataclass
+class AudiencePropertyPage:
+    """Paginated list of audience properties."""
+
+    properties: list[AudienceProperty]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class AudienceSegment:
+    """An audience segment.
+
+    ``condition_groups`` is kept as a list of raw dicts mirroring the
+    API shape (groups joined by OR, conditions within a group joined by AND).
+    """
+
+    id: str
+    name: str
+    condition_groups: list[dict[str, Any]]
+    created_at: str
+    list_id: str | None = None
+    list_name: str | None = None
+    cached_contacts_count: int | None = None
+
+
+@dataclass
+class AudienceSegmentPage:
+    """Paginated list of audience segments."""
+
+    segments: list[AudienceSegment]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class BulkDeleteResult:
+    """Result of a bulk delete operation."""
+
+    deleted: int
+
+
+@dataclass
+class BulkContactImportResult:
+    """Result of bulk-creating contacts."""
+
+    created: int
+    already_existed: int
+
+
+@dataclass
+class BulkListsAttachResult:
+    """Result of bulk-attaching contacts to lists."""
+
+    attached: int
+    already_attached: int
+    total_pairs: int
+
+
+@dataclass
+class BulkListsDetachResult:
+    """Result of bulk-detaching contacts from lists."""
+
+    detached: int
+    not_present: int
+    total_pairs: int

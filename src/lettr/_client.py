@@ -31,7 +31,7 @@ class ApiClient:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": "lettr-python/1.1.0",
+                "User-Agent": "lettr-python/1.2.0",
             },
         )
 
@@ -80,8 +80,17 @@ class ApiClient:
     def put(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
         return self.request("PUT", path, json=json)
 
-    def delete(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
-        return self.request("DELETE", path, params=params)
+    def patch(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
+        return self.request("PATCH", path, json=json)
+
+    def delete(
+        self,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+    ) -> Any:
+        return self.request("DELETE", path, params=params, json=json)
 
     def get_no_auth(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         """Send a GET request without the Authorization header.
@@ -98,7 +107,7 @@ class ApiClient:
                 timeout=self._timeout,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "lettr-python/1.1.0",
+                    "User-Agent": "lettr-python/1.2.0",
                 },
             )
         except httpx.HTTPError as exc:
