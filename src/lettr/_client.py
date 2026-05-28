@@ -7,9 +7,11 @@ from typing import Any
 import httpx
 
 from ._exceptions import LettrError, raise_for_status
+from ._version import __version__
 
 DEFAULT_BASE_URL = "https://app.lettr.com/api"
 DEFAULT_TIMEOUT = 30.0
+USER_AGENT = f"lettr-python/{__version__}"
 
 
 class ApiClient:
@@ -31,7 +33,7 @@ class ApiClient:
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
-                "User-Agent": "lettr-python/1.2.0",
+                "User-Agent": USER_AGENT,
             },
         )
 
@@ -107,7 +109,7 @@ class ApiClient:
                 timeout=self._timeout,
                 headers={
                     "Accept": "application/json",
-                    "User-Agent": "lettr-python/1.2.0",
+                    "User-Agent": USER_AGENT,
                 },
             )
         except httpx.HTTPError as exc:

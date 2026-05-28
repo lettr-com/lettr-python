@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-05-27
+
+### Added
+- Campaigns API — wraps the `/campaigns` endpoints under `client.campaigns`:
+  - `list` — paginated, with an optional `status` filter
+  - `get` — single campaign including rendered `html_content`
+  - `list_events` — cursor-paginated engagement events, with
+    `event_type` / `email` / `start_date` / `end_date` / `limit` filters
+  - `send` — send a campaign now
+  - `schedule` — schedule a campaign (`scheduled_at`, ISO 8601, future)
+  - `unschedule` — cancel a scheduled send
+  `send` / `schedule` / `unschedule` return the updated `Campaign`, or `None`
+  in the rare case the API omits it (e.g. the campaign was concurrently
+  deleted).
+
 ## [1.2.0] - 2026-05-26
 
 ### Added
@@ -157,7 +172,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/lettr/lettr-python/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/lettr/lettr-python/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lettr/lettr-python/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/lettr/lettr-python/compare/v0.3.0...v1.0.0
 [0.3.0]: https://github.com/lettr/lettr-python/compare/v0.2.0...v0.3.0

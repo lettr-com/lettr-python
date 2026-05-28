@@ -48,6 +48,11 @@ from ._types import (
     BulkDeleteResult,
     BulkListsAttachResult,
     BulkListsDetachResult,
+    Campaign,
+    CampaignEvent,
+    CampaignEventPage,
+    CampaignPage,
+    CampaignStats,
     DkimInfo,
     DmarcValidationResult,
     DnsProvider,
@@ -76,11 +81,12 @@ from ._types import (
     UserAgentParsed,
     Webhook,
 )
-from .resources import Audience, Domains, Emails, Projects, Templates, Webhooks
-
-__version__ = "1.2.0"
+from ._version import __version__
+from .resources import Audience, Campaigns, Domains, Emails, Projects, Templates, Webhooks
 
 __all__ = [
+    # Version
+    "__version__",
     # Client
     "Lettr",
     # Exceptions
@@ -114,6 +120,11 @@ __all__ = [
     "BulkDeleteResult",
     "BulkListsAttachResult",
     "BulkListsDetachResult",
+    "Campaign",
+    "CampaignEvent",
+    "CampaignEventPage",
+    "CampaignPage",
+    "CampaignStats",
     "DkimInfo",
     "DmarcValidationResult",
     "DnsProvider",
@@ -209,6 +220,9 @@ class Lettr:
 
         self.audience = Audience(self._client)
         """Audience management — lists, contacts, topics, properties, segments."""
+
+        self.campaigns = Campaigns(self._client)
+        """Campaign operations — list, get, events, send, schedule, unschedule."""
 
     def health(self) -> HealthCheck:
         """Check API health. No authentication required.
