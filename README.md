@@ -296,6 +296,38 @@ for project in project_list.projects:
     print(f"{project.emoji} {project.name}")
 ```
 
+### Campaigns
+
+Campaigns are authored in the Lettr app; the SDK lists them, reads them,
+inspects their engagement events, and triggers delivery.
+
+```python
+# List campaigns (optionally filter by status)
+page = client.campaigns.list(status="sent", per_page=50)
+for campaign in page.campaigns:
+    print(f"{campaign.name}: {campaign.status} — {campaign.stats.unique_opens} opens")
+
+# Get a single campaign, including rendered HTML
+campaign = client.campaigns.get(page.campaigns[0].id)
+print(campaign.html_content)
+
+# List engagement events (cursor-based pagination)
+events = client.campaigns.list_events(campaign.id, event_type="open")
+for event in events.events:
+    print(f"{event.timestamp} {event.event_type} {event.email}")
+if events.next_cursor:
+    more = client.campaigns.list_events(campaign.id, cursor=events.next_cursor)
+
+# Send now
+client.campaigns.send(campaign.id)
+
+# Schedule for later (ISO 8601, must be in the future)
+client.campaigns.schedule(campaign.id, scheduled_at="2026-06-01T09:00:00+00:00")
+
+# Cancel a scheduled send
+client.campaigns.unschedule(campaign.id)
+```
+
 ## Error Handling
 
 The SDK raises typed exceptions for all API errors:

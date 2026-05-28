@@ -47,6 +47,22 @@ def _from_dict(cls: type[T], data: dict[str, Any]) -> T:
     return cls(**{k: v for k, v in data.items() if k in known})
 
 
+def _pagination_kwargs(p: dict[str, Any]) -> dict[str, int]:
+    """Extract the standard four-field page-based pagination kwargs.
+
+    The Laravel-style paginator returns ``{total, per_page, current_page,
+    last_page}`` on every list endpoint. Helper exists so each ``*Page``
+    parser unpacks the same four keys consistently rather than spelling them
+    out by hand.
+    """
+    return {
+        "total": p["total"],
+        "per_page": p["per_page"],
+        "current_page": p["current_page"],
+        "last_page": p["last_page"],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Common / shared types
 # ---------------------------------------------------------------------------
@@ -648,3 +664,81 @@ class BulkListsDetachResult:
     detached: int
     not_present: int
     total_pairs: int
+
+
+# ---------------------------------------------------------------------------
+# Campaigns
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CampaignStats:
+    """Aggregated engagement statistics for a campaign."""
+
+    injections: int
+    deliveries: int
+    bounces: int
+    spam_complaints: int
+    opens: int
+    unique_opens: int
+    clicks: int
+    unique_clicks: int
+    unsubscribes: int
+
+
+@dataclass
+class Campaign:
+    """A campaign with embedded engagement stats.
+
+    ``html_content`` is populated by ``client.campaigns.get(id)`` (which
+    returns the full rendered email body) and left as ``None`` on
+    ``client.campaigns.list()`` responses, which omit the heavy field.
+    """
+
+    id: str
+    name: str
+    status: str
+    sent_count: int
+    created_at: str
+    stats: CampaignStats
+    subject: str | None = None
+    from_email: str | None = None
+    from_name: str | None = None
+    reply_to: str | None = None
+    scheduled_at: str | None = None
+    total_recipients: int | None = None
+    sent_at: str | None = None
+    html_content: str | None = None
+
+
+@dataclass
+class CampaignPage:
+    """Paginated list of campaigns."""
+
+    campaigns: list[Campaign]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
+
+
+@dataclass
+class CampaignEvent:
+    """A single campaign engagement event."""
+
+    event_id: str
+    event_type: str
+    email: str
+    timestamp: str
+    bounce_class: str | None = None
+    reason: str | None = None
+    target_link_url: str | None = None
+    user_agent: str | None = None
+
+
+@dataclass
+class CampaignEventPage:
+    """Cursor-paginated list of campaign events."""
+
+    events: list[CampaignEvent]
+    next_cursor: str | None = None
