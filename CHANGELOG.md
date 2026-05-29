@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-05-28
+
+### Added
+- `CampaignDetail` type — a `Campaign` subclass that adds the rendered
+  `html_content` field. Returned by `client.campaigns.get(id)`.
+
+### Changed
+- `client.campaigns.get(id)` is now typed as returning `CampaignDetail`
+  (previously `Campaign`). `CampaignDetail` inherits from `Campaign`, so
+  existing callers that read summary fields keep working unchanged.
+
+### Removed
+- `Campaign.html_content` — moved to `CampaignDetail`. The field was only
+  ever populated by `get()`; on `list()` / `send()` / `schedule()` /
+  `unschedule()` it was always `None`, so reading it on those return
+  values was a dead branch the type system silently encouraged. Move
+  any `html_content` access to a `get()` result.
+
 ## [1.3.0] - 2026-05-27
 
 ### Added
@@ -172,7 +190,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/lettr/lettr-python/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lettr/lettr-python/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lettr/lettr-python/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/lettr/lettr-python/compare/v1.0.0...v1.1.0
