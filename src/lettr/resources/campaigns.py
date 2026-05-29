@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from .._client import ApiClient
 from .._types import (
     Campaign,
+    CampaignDetail,
     CampaignEvent,
     CampaignEventPage,
     CampaignPage,
@@ -20,19 +21,19 @@ from .._types import (
 # Parsers
 # ---------------------------------------------------------------------------
 
+_C = TypeVar("_C", bound=Campaign)
 
-def _parse_campaign(d: dict[str, Any]) -> Campaign:
-    """Parse a campaign payload (CampaignSummary or CampaignDetail).
 
-    The ``html_content`` field is only present on the detail (``get``)
-    response; for list responses it stays ``None``. Unknown keys are
-    silently dropped via :func:`_from_dict` so the parser is
-    forward-compatible.
+def _parse_campaign_as(cls: type[_C], d: dict[str, Any]) -> _C:
+    """Parse a campaign payload into ``cls`` (Campaign or CampaignDetail).
+
+    Pass :class:`Campaign` for list/action endpoints and
+    :class:`CampaignDetail` for the detail endpoint. Unknown keys are
+    dropped by :func:`_from_dict`, so the list/action paths can't
+    accidentally surface a stray ``html_content`` if the API ever
+    includes one.
     """
-    return _from_dict(
-        Campaign,
-        {**d, "stats": _from_dict(CampaignStats, d["stats"])},
-    )
+    return _from_dict(cls, {**d, "stats": _from_dict(CampaignStats, d["stats"])})
 
 
 def _parse_event(d: dict[str, Any]) -> CampaignEvent:
@@ -46,11 +47,11 @@ def _parse_action_response(body: dict[str, Any]) -> Campaign | None:
     server omits it in the rare case the campaign can't be re-read after
     the action (e.g. it was concurrently deleted). ``None`` here means
     "absent key", not "empty object": a spec-violating ``data: {}`` is
-    intentionally left to raise inside :func:`_parse_campaign` rather than
-    being silently swallowed.
+    intentionally left to raise inside :func:`_parse_campaign_as` rather
+    than being silently swallowed.
     """
     data = body.get("data")
-    return _parse_campaign(data) if data is not None else None
+    return _parse_campaign_as(Campaign, data) if data is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -105,18 +106,20 @@ class Campaigns:
         body = self._client.get("/campaigns", params=params)
         data = body["data"]
         return CampaignPage(
-            campaigns=[_parse_campaign(item) for item in data["campaigns"]],
+            campaigns=[_parse_campaign_as(Campaign, item) for item in data["campaigns"]],
             **_pagination_kwargs(data["pagination"]),
         )
 
-    def get(self, campaign_id: str) -> Campaign:
-        """Get a single campaign by ID, including its rendered HTML content.
+    def get(self, campaign_id: str) -> CampaignDetail:
+        """Get a single campaign by ID, including its rendered HTML body.
 
-        The returned :class:`Campaign` has ``html_content`` populated; list
-        responses leave it as ``None``.
+        Returns a :class:`CampaignDetail` (a :class:`Campaign` subclass)
+        whose ``html_content`` field carries the rendered email; the
+        list/action endpoints return the base :class:`Campaign` and do
+        not expose ``html_content`` at all.
         """
         body = self._client.get(f"/campaigns/{campaign_id}")
-        return _parse_campaign(body["data"])
+        return _parse_campaign_as(CampaignDetail, body["data"])
 
     def list_events(
         self,

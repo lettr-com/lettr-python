@@ -307,7 +307,9 @@ page = client.campaigns.list(status="sent", per_page=50)
 for campaign in page.campaigns:
     print(f"{campaign.name}: {campaign.status} — {campaign.stats.unique_opens} opens")
 
-# Get a single campaign, including rendered HTML
+# Get a single campaign — returns a CampaignDetail with the rendered body.
+# (`list`, `send`, `schedule`, `unschedule` return the base `Campaign`,
+# which does not carry `html_content`.)
 campaign = client.campaigns.get(page.campaigns[0].id)
 print(campaign.html_content)
 

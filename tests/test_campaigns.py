@@ -9,6 +9,7 @@ import pytest
 
 from lettr._types import (
     Campaign,
+    CampaignDetail,
     CampaignEventPage,
     CampaignPage,
     CampaignStats,
@@ -98,8 +99,8 @@ class TestList:
         assert page.campaigns[0].name == "Spring Sale"
         assert isinstance(page.campaigns[0].stats, CampaignStats)
         assert page.campaigns[0].stats.unique_opens == 45
-        # list responses do not include the rendered body
-        assert page.campaigns[0].html_content is None
+        # list responses return the base type, not the detail variant
+        assert type(page.campaigns[0]) is Campaign
         assert page.total == 1
         assert page.per_page == 20
         mock_client.get.assert_called_once_with("/campaigns", params={})
@@ -128,7 +129,17 @@ class TestList:
         assert c.scheduled_at is None
         assert c.total_recipients is None
         assert c.sent_at is None
-        assert c.html_content is None
+
+    def test_list_drops_unexpected_html_content(
+        self, campaigns: Campaigns, mock_client: MagicMock
+    ) -> None:
+        # Regression guard: even if the API ever leaks html_content into
+        # a list item, _from_dict's field-set filter must strip it before
+        # construction so the base Campaign instance has no such attribute.
+        polluted = {**CAMPAIGN_DATA, "html_content": "<h1>leak</h1>"}
+        mock_client.get.return_value = {"data": {"campaigns": [polluted], "pagination": PAGINATION}}
+        page = campaigns.list()
+        assert not hasattr(page.campaigns[0], "html_content")
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +151,9 @@ class TestGet:
     def test_get(self, campaigns: Campaigns, mock_client: MagicMock) -> None:
         mock_client.get.return_value = {"data": CAMPAIGN_DETAIL_DATA}
         result = campaigns.get("camp_1")
-        assert isinstance(result, Campaign)
+        # CampaignDetail IS-A Campaign — substitutability preserved for
+        # existing summary-shaped callers.
+        assert isinstance(result, CampaignDetail)
         assert result.id == "camp_1"
         assert result.html_content == "<h1>Hi</h1>"
         assert result.stats.clicks == 20
@@ -201,7 +214,8 @@ class TestSend:
     def test_send_returns_campaign(self, campaigns: Campaigns, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {"message": "Sending.", "data": CAMPAIGN_DATA}
         result = campaigns.send("camp_1")
-        assert isinstance(result, Campaign)
+        # Action endpoints return the base Campaign, never the detail variant.
+        assert type(result) is Campaign
         assert result.id == "camp_1"
         mock_client.post.assert_called_once_with("/campaigns/camp_1/send")
 
@@ -217,7 +231,7 @@ class TestSchedule:
         scheduled = {**CAMPAIGN_DATA, "status": "scheduled"}
         mock_client.post.return_value = {"message": "Scheduled.", "data": scheduled}
         result = campaigns.schedule("camp_1", scheduled_at="2026-06-01T09:00:00+00:00")
-        assert isinstance(result, Campaign)
+        assert type(result) is Campaign
         assert result.status == "scheduled"
         mock_client.post.assert_called_once_with(
             "/campaigns/camp_1/schedule",
@@ -247,7 +261,7 @@ class TestUnschedule:
         drafted = {**CAMPAIGN_DATA, "status": "draft"}
         mock_client.post.return_value = {"message": "Unscheduled.", "data": drafted}
         result = campaigns.unschedule("camp_1")
-        assert isinstance(result, Campaign)
+        assert type(result) is Campaign
         assert result.status == "draft"
         mock_client.post.assert_called_once_with("/campaigns/camp_1/unschedule")
 

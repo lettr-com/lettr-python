@@ -690,9 +690,11 @@ class CampaignStats:
 class Campaign:
     """A campaign with embedded engagement stats.
 
-    ``html_content`` is populated by ``client.campaigns.get(id)`` (which
-    returns the full rendered email body) and left as ``None`` on
-    ``client.campaigns.list()`` responses, which omit the heavy field.
+    Returned by :meth:`Campaigns.list`, :meth:`Campaigns.send`,
+    :meth:`Campaigns.schedule`, and :meth:`Campaigns.unschedule`. The
+    rendered email body lives on :class:`CampaignDetail` (returned by
+    :meth:`Campaigns.get`) so callers of the list/action endpoints aren't
+    handed an attribute that the API never populates there.
     """
 
     id: str
@@ -708,6 +710,16 @@ class Campaign:
     scheduled_at: str | None = None
     total_recipients: int | None = None
     sent_at: str | None = None
+
+
+@dataclass
+class CampaignDetail(Campaign):
+    """A campaign plus its rendered HTML body.
+
+    Returned only by :meth:`Campaigns.get`. Inherits every :class:`Campaign`
+    field so existing summary-shaped consumers keep working unchanged.
+    """
+
     html_content: str | None = None
 
 
