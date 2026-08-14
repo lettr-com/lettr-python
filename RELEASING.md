@@ -12,14 +12,19 @@ published.
 
 Pre-1.0 minor bumps may contain breaking changes (noted in the changelog).
 
-## Version is stored in three places
+## Version lives in exactly one place
 
-Keep all three in sync:
+`pyproject.toml` → `version = "X.Y.Z"`. That is the only file to edit.
 
-1. `pyproject.toml` → `version = "X.Y.Z"`
-2. `src/lettr/__init__.py` → `__version__ = "X.Y.Z"`
-3. `src/lettr/_client.py` → `User-Agent` header (two occurrences:
-   `request()` and `get_no_auth()`)
+Everything else derives from it at runtime:
+
+- `src/lettr/_version.py` reads the installed distribution's version via
+  `importlib.metadata.version("lettr")` and exports it as `__version__`
+- `src/lettr/__init__.py` re-exports that `__version__`
+- `src/lettr/_client.py` builds `USER_AGENT = f"lettr-python/{__version__}"`
+  from it
+
+Never hardcode the version anywhere else.
 
 ## Release checklist
 
@@ -27,19 +32,25 @@ Keep all three in sync:
    `[X.Y.Z]` section in `CHANGELOG.md`. Add a new empty `[Unreleased]`
    section at the top. Update the compare links at the bottom.
 
-2. **Bump the version** in the three files above.
+2. **Bump the version** in `pyproject.toml` — the one place it lives.
 
-3. **Run the checks locally:**
+3. **Run the checks locally.** These are exactly what CI's
+   "Lint & Type Check" and "Test" jobs run; `ruff format --check` is easy
+   to forget and will fail the build on its own.
    ```bash
    source .venv/bin/activate
-   python -m pytest tests/ -v
-   ruff check src/ tests/
+   pip install -e .              # so __version__ picks up the new version
+   ruff check src/lettr tests
+   ruff format --check src/lettr tests
+   mypy src/lettr
+   python -m pytest -q
+   python -c "import lettr; print(lettr.__version__)"   # should print X.Y.Z
    ```
 
 4. **Commit and push on `main`:**
    ```bash
-   git add CHANGELOG.md pyproject.toml src/lettr/
-   git commit -m "Release vX.Y.Z"
+   git add CHANGELOG.md pyproject.toml
+   git commit -m "chore(release): X.Y.Z"
    git push origin main
    ```
 
