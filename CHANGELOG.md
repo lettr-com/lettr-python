@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-14
+
 Covers the reworked bulk contact import (TPL-2105) and the duplicate-create fix.
 Everything here is additive — code written against 1.4.0 keeps working and sends
 the exact same payloads.
@@ -282,6 +284,7 @@ the exact same payloads.
   `ServerError`)
 
 [Unreleased]: https://github.com/lettr/lettr-python/compare/v1.4.0...HEAD
+[1.5.0]: https://github.com/lettr/lettr-python/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/lettr/lettr-python/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lettr/lettr-python/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/lettr/lettr-python/compare/v1.1.0...v1.2.0
