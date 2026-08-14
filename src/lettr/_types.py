@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
-from typing import Any, Final, TypeVar
+from dataclasses import dataclass, field, fields
+from typing import Any, Final, Literal, TypeVar
 
 T = TypeVar("T")
 
@@ -640,12 +640,198 @@ class BulkDeleteResult:
     deleted: int
 
 
+TopicSubscriptionState = Literal["opt_in", "opt_out"]
+"""What a write request should *do* with a topic.
+
+Distinct from a topic's ``default_subscription``, which describes how the topic
+behaves for a contact that says nothing. ``"opt_out"`` here also cancels the
+auto-subscription a topic with ``default_subscription="opt_out"`` would
+otherwise give a newly created contact, so a create and an unsubscribe fit in
+one request.
+"""
+
+BulkContactErrorCode = Literal[
+    "missing_email",
+    "invalid_email",
+    "invalid_property_value",
+    "unknown_property_key",
+    "unknown_list",
+    "unknown_topic",
+    "invalid_topic_subscription",
+]
+"""Reason a single row was skipped during a bulk create.
+
+Per-row codes reported inside a ``201`` body — not the top-level ``error_code``
+of a failed request.
+"""
+
+
+@dataclass
+class TopicSubscription:
+    """A topic and the subscription state to apply to it.
+
+    Used batch-wide on :meth:`~lettr.resources.audience.AudienceContacts.bulk_create`
+    and per row on :class:`BulkContactRow`. A row-level ``opt_out`` wins over a
+    batch-level ``opt_in`` for that contact.
+
+    Build them with the constructors for readability at the call site::
+
+        TopicSubscription.opt_in("01h-newsletter")
+        TopicSubscription.opt_out("01h-promos")
+    """
+
+    id: str
+    subscription: TopicSubscriptionState = "opt_in"
+
+    @classmethod
+    def opt_in(cls, topic_id: str) -> TopicSubscription:
+        """Subscribe the contact to the topic."""
+        return cls(id=topic_id, subscription="opt_in")
+
+    @classmethod
+    def opt_out(cls, topic_id: str) -> TopicSubscription:
+        """Suppress the topic for the contact.
+
+        Including a topic that would otherwise auto-subscribe newly created
+        contacts.
+        """
+        return cls(id=topic_id, subscription="opt_out")
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"id": self.id, "subscription": self.subscription}
+
+
+@dataclass
+class BulkContactRow:
+    """One contact in a bulk create payload.
+
+    ``list_ids`` and ``topics`` here are applied **on top of** the batch-wide
+    ones passed to ``bulk_create()``; a ``properties`` key here overrides the
+    batch-wide value for the same key.
+
+    A row that fails validation is skipped rather than failing the request — it
+    comes back in :attr:`BulkContactImportResult.errors`.
+    """
+
+    email: str
+    properties: dict[str, str] | None = None
+    """Each key must match a property defined for the team."""
+
+    list_ids: list[str] | None = None
+    topics: list[TopicSubscription] | None = None
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"email": self.email}
+        if self.properties is not None:
+            payload["properties"] = self.properties
+        if self.list_ids is not None:
+            payload["list_ids"] = list(self.list_ids)
+        if self.topics is not None:
+            payload["topics"] = [topic.to_payload() for topic in self.topics]
+        return payload
+
+
+@dataclass
+class BulkContactError:
+    """A row that was skipped during a bulk create."""
+
+    index: int
+    """Zero-based position of the row in the submitted sequence."""
+
+    email: str | None
+    error_code: BulkContactErrorCode | str
+    """Typed as a union so a code added server-side survives as a plain string."""
+
+    error: str
+
+
+@dataclass
+class BulkContactRef:
+    """Identity of a contact that exists after a bulk create.
+
+    Lets a caller chain into the bulk list and topic endpoints without a
+    follow-up lookup.
+    """
+
+    id: str
+    email: str
+    created: bool
+    """``True`` when this request created the contact, ``False`` when it already existed."""
+
+
 @dataclass
 class BulkContactImportResult:
-    """Result of bulk-creating contacts."""
+    """Result of bulk-creating contacts.
+
+    A bulk create can **partially succeed**: rows that fail validation are
+    skipped and reported in :attr:`errors` while the rest of the batch is
+    written, and the call still returns HTTP 201. A call that does not raise
+    therefore does not mean every row landed — check :attr:`has_errors`.
+
+    :attr:`already_existed` and :attr:`updated` overlap by design. They answer
+    different questions ("was the address already in the audience?" vs "did this
+    request change the contact?"), so they do not sum to the row count: a
+    contact that already existed and got attached to a list is counted in both.
+    """
 
     created: int
     already_existed: int
+    updated: int = 0
+    """Existing contacts this request changed — properties merged, a list or
+    topic attached, or a subscription dropped."""
+
+    error_count: int = 0
+    """Number of skipped rows."""
+
+    errors: list[BulkContactError] = field(default_factory=list)
+    contacts: list[BulkContactRef] = field(default_factory=list)
+    """Every contact that exists after the request, in submission order."""
+
+    @property
+    def has_errors(self) -> bool:
+        """Whether any row was skipped.
+
+        Always check this — a bulk create reports partial failures in the body,
+        not in the HTTP status.
+        """
+        return bool(self.errors)
+
+    @property
+    def contact_ids(self) -> list[str]:
+        """Ids of every contact that exists after the request, in submission order.
+
+        Ready to feed into ``bulk_attach_lists()`` or ``bulk_subscribe_topics()``.
+        """
+        return [contact.id for contact in self.contacts]
+
+    def id_for(self, email: str) -> str | None:
+        """Look up the id for a submitted address.
+
+        Matching is case-insensitive because the API normalizes addresses
+        before storing them.
+        """
+        needle = email.strip().lower()
+        for contact in self.contacts:
+            if contact.email.lower() == needle:
+                return contact.id
+        return None
+
+
+@dataclass
+class BulkTopicsSubscribeResult:
+    """Result of bulk-subscribing contacts to topics."""
+
+    subscribed: int
+    already_subscribed: int
+    total_pairs: int
+
+
+@dataclass
+class BulkTopicsUnsubscribeResult:
+    """Result of bulk-unsubscribing contacts from topics."""
+
+    unsubscribed: int
+    total_pairs: int
 
 
 @dataclass

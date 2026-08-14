@@ -6,7 +6,7 @@ import builtins
 from typing import Any
 
 from .._client import ApiClient
-from .._exceptions import LettrError
+from .._exceptions import ConflictError, ContactAlreadyExistsError, LettrError
 from .._types import (
     UNSET,
     AudienceContact,
@@ -21,12 +21,22 @@ from .._types import (
     AudienceSegmentPage,
     AudienceTopic,
     AudienceTopicPage,
+    BulkContactError,
     BulkContactImportResult,
+    BulkContactRef,
+    BulkContactRow,
     BulkDeleteResult,
     BulkListsAttachResult,
     BulkListsDetachResult,
+    BulkTopicsSubscribeResult,
+    BulkTopicsUnsubscribeResult,
+    TopicSubscription,
     _UnsetType,
 )
+
+# The only documented 409 on POST /audience/contacts is a duplicate email. Any
+# other conflict code the API grows later stays a plain ConflictError.
+_RESOURCE_ALREADY_EXISTS = "resource_already_exists"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -98,6 +108,38 @@ def _parse_property(d: dict[str, Any]) -> AudienceProperty:
         type=d["type"],
         created_at=d["created_at"],
         fallback_value=d.get("fallback_value"),
+    )
+
+
+def _parse_bulk_import(data: dict[str, Any]) -> BulkContactImportResult:
+    """Parse a bulk-create body.
+
+    ``updated``, ``error_count``, ``errors`` and ``contacts`` arrived with
+    TPL-2105; defaulting them keeps ``result.has_errors`` safe against an API
+    deployment that predates the change.
+    """
+    return BulkContactImportResult(
+        created=data["created"],
+        already_existed=data["already_existed"],
+        updated=data.get("updated", 0),
+        error_count=data.get("error_count", 0),
+        errors=[
+            BulkContactError(
+                index=item["index"],
+                email=item.get("email"),
+                error_code=item["error_code"],
+                error=item["error"],
+            )
+            for item in data.get("errors") or []
+        ],
+        contacts=[
+            BulkContactRef(
+                id=item["id"],
+                email=item["email"],
+                created=item["created"],
+            )
+            for item in data.get("contacts") or []
+        ],
     )
 
 
@@ -267,6 +309,12 @@ class AudienceContacts:
                 confirmation email. See the API reference for the expected
                 shape (``from``, ``subject``, ``template_slug``, ``redirect_url``,
                 and optional ``from_name``).
+
+        Raises:
+            ContactAlreadyExistsError: The email is already in the team's
+                audience. A subclass of ``ConflictError``, so existing handlers
+                keep catching it. Do not retry — update the existing contact
+                instead, or use ``bulk_create(update_existing=True)``.
         """
         payload: dict[str, Any] = {"email": email}
         if list_id is not None:
@@ -275,7 +323,18 @@ class AudienceContacts:
             payload["properties"] = properties
         if double_opt_in is not None:
             payload["double_opt_in"] = double_opt_in
-        body = self._client.post("/audience/contacts", json=payload)
+
+        try:
+            body = self._client.post("/audience/contacts", json=payload)
+        except ConflictError as exc:
+            if exc.error_code in (None, _RESOURCE_ALREADY_EXISTS):
+                raise ContactAlreadyExistsError(
+                    message=exc.message,
+                    error_code=exc.error_code,
+                    email=email,
+                ) from exc
+            raise
+
         return _parse_contact(body["data"])
 
     def update(
@@ -304,22 +363,89 @@ class AudienceContacts:
     def bulk_create(
         self,
         *,
-        emails: builtins.list[str],
+        emails: builtins.list[str] | None = None,
         list_id: str | None = None,
         properties: dict[str, str] | None = None,
+        contacts: builtins.list[BulkContactRow] | None = None,
+        list_ids: builtins.list[str] | None = None,
+        topics: builtins.list[TopicSubscription] | None = None,
+        update_existing: bool = False,
     ) -> BulkContactImportResult:
-        """Bulk-create up to 1000 contacts."""
-        payload: dict[str, Any] = {"emails": emails}
+        """Bulk-create up to 1000 contacts.
+
+        Two shapes are supported, and exactly one of them must be filled in:
+
+        - ``emails`` — a flat list of addresses that all share ``list_id`` /
+          ``list_ids``, ``properties`` and ``topics``. The original shape,
+          unchanged::
+
+              client.audience.contacts.bulk_create(
+                  emails=["a@example.com", "b@example.com"],
+                  list_id="01h-everyone",
+              )
+
+        - ``contacts`` — one :class:`~lettr.BulkContactRow` per contact, each
+          with its own properties, lists and topic subscriptions::
+
+              client.audience.contacts.bulk_create(
+                  contacts=[
+                      BulkContactRow(email="cara@example.com", properties={"plan": "pro"}),
+                      BulkContactRow(
+                          email="dan@example.com",
+                          topics=[TopicSubscription.opt_out("01h-promos")],
+                      ),
+                  ],
+                  list_ids=["01h-everyone"],
+              )
+
+        Batch-wide ``list_ids`` and ``topics`` are unioned into every row; a
+        row-level property key or ``opt_out`` wins over the batch-wide value.
+
+        Args:
+            emails: 1–1000 addresses. Alternative to ``contacts``.
+            list_id: Single batch-wide list. Folded into ``list_ids`` server-side.
+            properties: Applied to every contact in the batch; a row's own key wins.
+            contacts: 1–1000 rows. Alternative to ``emails``.
+            list_ids: Max 50 batch-wide lists.
+            topics: Max 50 batch-wide topic subscriptions.
+            update_existing: When ``True``, existing contacts have their
+                properties merged (submitted keys overwrite, absent keys are
+                preserved) and ``opt_out`` entries applied. When ``False`` (the
+                default) existing contacts keep their properties but are still
+                attached to the requested lists.
+
+        Returns:
+            A :class:`~lettr.BulkContactImportResult`. Rows that fail validation
+            are skipped rather than failing the request: the call still returns
+            HTTP 201 and reports them in ``errors``. Check ``result.has_errors``
+            — a call that does not raise does not mean every row landed.
+
+        Raises:
+            ValueError: Neither ``emails`` nor ``contacts`` was provided.
+        """
+        if not emails and not contacts:
+            raise ValueError("bulk_create() needs at least one entry in either emails or contacts.")
+
+        payload: dict[str, Any] = {}
+        if emails:
+            payload["emails"] = list(emails)
         if list_id is not None:
             payload["list_id"] = list_id
         if properties is not None:
             payload["properties"] = properties
+        if contacts is not None:
+            payload["contacts"] = [row.to_payload() for row in contacts]
+        if list_ids is not None:
+            payload["list_ids"] = list(list_ids)
+        if topics is not None:
+            payload["topics"] = [topic.to_payload() for topic in topics]
+        # Omitted when False so a legacy payload stays byte-identical; the API
+        # defaults it to False anyway.
+        if update_existing:
+            payload["update_existing"] = True
+
         body = self._client.post("/audience/contacts/bulk", json=payload)
-        data = body["data"]
-        return BulkContactImportResult(
-            created=data["created"],
-            already_existed=data["already_existed"],
-        )
+        return _parse_bulk_import(body["data"])
 
     # -- list memberships ---------------------------------------------------
 
@@ -382,6 +508,56 @@ class AudienceContacts:
     def unsubscribe_from_topic(self, *, contact_id: str, topic_id: str) -> None:
         """Unsubscribe a contact from a topic (idempotent)."""
         self._client.delete(f"/audience/contacts/{contact_id}/topics/{topic_id}")
+
+    def bulk_subscribe_topics(
+        self,
+        *,
+        contact_ids: builtins.list[str],
+        topic_ids: builtins.list[str],
+    ) -> BulkTopicsSubscribeResult:
+        """Subscribe all ``contact_ids`` × ``topic_ids`` pairs (up to 1000 × 50).
+
+        Feed it ``result.contact_ids`` from a ``bulk_create()`` — no id lookup
+        needed.
+        """
+        body = _require_body(
+            self._client.post(
+                "/audience/contacts/topics/bulk",
+                json={"contact_ids": contact_ids, "topic_ids": topic_ids},
+            ),
+            "POST /audience/contacts/topics/bulk",
+        )
+        data = body["data"]
+        return BulkTopicsSubscribeResult(
+            subscribed=data["subscribed"],
+            already_subscribed=data["already_subscribed"],
+            total_pairs=data["total_pairs"],
+        )
+
+    def bulk_unsubscribe_topics(
+        self,
+        *,
+        contact_ids: builtins.list[str],
+        topic_ids: builtins.list[str],
+    ) -> BulkTopicsUnsubscribeResult:
+        """Unsubscribe all ``contact_ids`` × ``topic_ids`` pairs.
+
+        Pairs that do not exist are ignored. Note this is a ``DELETE`` carrying
+        a request body — ``httpx`` handles that, as it already does for
+        ``bulk_detach_lists()``.
+        """
+        body = _require_body(
+            self._client.delete(
+                "/audience/contacts/topics/bulk",
+                json={"contact_ids": contact_ids, "topic_ids": topic_ids},
+            ),
+            "DELETE /audience/contacts/topics/bulk",
+        )
+        data = body["data"]
+        return BulkTopicsUnsubscribeResult(
+            unsubscribed=data["unsubscribed"],
+            total_pairs=data["total_pairs"],
+        )
 
 
 # ---------------------------------------------------------------------------

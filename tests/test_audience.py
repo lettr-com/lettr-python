@@ -6,17 +6,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from lettr._exceptions import LettrError
+from lettr._exceptions import ConflictError, ContactAlreadyExistsError, LettrError
 from lettr._types import (
     AudienceContact,
     AudienceList,
     AudienceProperty,
     AudienceSegment,
     AudienceTopic,
+    BulkContactError,
     BulkContactImportResult,
+    BulkContactRow,
     BulkDeleteResult,
     BulkListsAttachResult,
     BulkListsDetachResult,
+    BulkTopicsSubscribeResult,
+    BulkTopicsUnsubscribeResult,
+    TopicSubscription,
 )
 from lettr.resources.audience import (
     Audience,
@@ -293,6 +298,156 @@ class TestContacts:
         payload = mock_client.post.call_args.kwargs["json"]
         assert payload["emails"][0] == "a@example.com"
         assert payload["list_id"] == "list_1"
+        # The pre-TPL-2105 payload must go out byte-identical — no `contacts`
+        # key, and no `update_existing` unless the caller asked for it.
+        assert set(payload) == {"emails", "list_id"}
+
+    def test_bulk_create_defaults_missing_tpl_2105_fields(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        # An API deployment older than TPL-2105 answers with just the two
+        # counters. `has_errors` must still be readable.
+        mock_client.post.return_value = {"data": {"created": 2, "already_existed": 1}}
+        result = contacts.bulk_create(emails=["a@example.com"])
+        assert result.updated == 0
+        assert result.error_count == 0
+        assert result.errors == []
+        assert result.contacts == []
+        assert result.has_errors is False
+        assert result.contact_ids == []
+
+    def test_bulk_create_with_rows(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "created": 2,
+                "already_existed": 0,
+                "updated": 0,
+                "error_count": 0,
+                "errors": [],
+                "contacts": [
+                    {"id": "c1", "email": "cara@example.com", "created": True},
+                    {"id": "c2", "email": "dan@example.com", "created": True},
+                ],
+            }
+        }
+        result = contacts.bulk_create(
+            contacts=[
+                BulkContactRow(
+                    email="cara@example.com",
+                    properties={"plan": "pro"},
+                    list_ids=["list_vip"],
+                ),
+                # Row-level opt_out must beat the batch-wide opt_in below.
+                BulkContactRow(
+                    email="dan@example.com",
+                    topics=[TopicSubscription.opt_out("topic_promos")],
+                ),
+            ],
+            list_ids=["list_everyone"],
+            topics=[TopicSubscription.opt_in("topic_promos")],
+            properties={"source": "spring-campaign"},
+            update_existing=True,
+        )
+
+        payload = mock_client.post.call_args.kwargs["json"]
+        assert "emails" not in payload
+        assert payload["contacts"] == [
+            {
+                "email": "cara@example.com",
+                "properties": {"plan": "pro"},
+                "list_ids": ["list_vip"],
+            },
+            {
+                "email": "dan@example.com",
+                "topics": [{"id": "topic_promos", "subscription": "opt_out"}],
+            },
+        ]
+        assert payload["list_ids"] == ["list_everyone"]
+        assert payload["topics"] == [{"id": "topic_promos", "subscription": "opt_in"}]
+        assert payload["update_existing"] is True
+
+        # Ids come back in submission order, so no follow-up lookup is needed.
+        assert result.contact_ids == ["c1", "c2"]
+        # id_for() is case-insensitive: the API normalizes addresses.
+        assert result.id_for("CARA@example.com ") == "c1"
+        assert result.id_for("nobody@example.com") is None
+
+    def test_bulk_create_reports_skipped_rows(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        # Partial success: HTTP 201 with `errors` populated. Nothing raises,
+        # even though one row never landed — that is the trap this pins down.
+        mock_client.post.return_value = {
+            "data": {
+                "created": 1,
+                "already_existed": 0,
+                "updated": 0,
+                "error_count": 1,
+                "errors": [
+                    {
+                        "index": 1,
+                        "email": "not-an-email",
+                        "error_code": "invalid_email",
+                        "error": "The email address is not valid.",
+                    }
+                ],
+                "contacts": [{"id": "c1", "email": "cara@example.com", "created": True}],
+            }
+        }
+        result = contacts.bulk_create(
+            contacts=[
+                BulkContactRow(email="cara@example.com"),
+                BulkContactRow(email="not-an-email"),
+            ]
+        )
+
+        assert result.has_errors is True
+        assert result.error_count == 1
+        assert result.errors[0] == BulkContactError(
+            index=1,
+            email="not-an-email",
+            error_code="invalid_email",
+            error="The email address is not valid.",
+        )
+        assert result.contact_ids == ["c1"]
+
+    def test_bulk_create_requires_emails_or_contacts(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        with pytest.raises(ValueError, match="emails or contacts"):
+            contacts.bulk_create(list_id="list_1")
+        mock_client.post.assert_not_called()
+
+    def test_create_duplicate_raises_contact_already_exists(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.post.side_effect = ConflictError(
+            message="A contact with the email jane@example.com already exists.",
+            error_code="resource_already_exists",
+        )
+
+        with pytest.raises(ContactAlreadyExistsError) as excinfo:
+            contacts.create(email="jane@example.com")
+
+        # Subclasses ConflictError, so pre-existing handlers keep working.
+        assert isinstance(excinfo.value, ConflictError)
+        assert excinfo.value.email == "jane@example.com"
+        assert excinfo.value.error_code == "resource_already_exists"
+
+    def test_create_other_conflict_stays_generic(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.post.side_effect = ConflictError(
+            message="Something else conflicted.",
+            error_code="some_future_code",
+        )
+
+        with pytest.raises(ConflictError) as excinfo:
+            contacts.create(email="jane@example.com")
+
+        assert not isinstance(excinfo.value, ContactAlreadyExistsError)
 
 
 class TestMemberships:
@@ -338,6 +493,43 @@ class TestMemberships:
             "/audience/contacts/lists/bulk",
             json={"contact_ids": ["c1", "c2"], "list_ids": ["l1", "l2"]},
         )
+
+    def test_bulk_subscribe_topics(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.post.return_value = {
+            "data": {"subscribed": 3, "already_subscribed": 1, "total_pairs": 4}
+        }
+        result = contacts.bulk_subscribe_topics(contact_ids=["c1", "c2"], topic_ids=["t1", "t2"])
+        assert isinstance(result, BulkTopicsSubscribeResult)
+        assert result.subscribed == 3
+        assert result.already_subscribed == 1
+        # 2 contacts × 2 topics — the endpoint works over the cartesian product.
+        assert result.total_pairs == 4
+        mock_client.post.assert_called_once_with(
+            "/audience/contacts/topics/bulk",
+            json={"contact_ids": ["c1", "c2"], "topic_ids": ["t1", "t2"]},
+        )
+
+    def test_bulk_unsubscribe_topics(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.delete.return_value = {"data": {"unsubscribed": 2, "total_pairs": 4}}
+        result = contacts.bulk_unsubscribe_topics(contact_ids=["c1", "c2"], topic_ids=["t1", "t2"])
+        assert isinstance(result, BulkTopicsUnsubscribeResult)
+        assert result.unsubscribed == 2
+        # DELETE with a request body — the pairs to remove travel in the body.
+        mock_client.delete.assert_called_once_with(
+            "/audience/contacts/topics/bulk",
+            json={"contact_ids": ["c1", "c2"], "topic_ids": ["t1", "t2"]},
+        )
+
+    def test_bulk_subscribe_topics_empty_body_raises(
+        self, contacts: AudienceContacts, mock_client: MagicMock
+    ) -> None:
+        mock_client.post.return_value = None
+        with pytest.raises(LettrError, match="Unexpected empty response"):
+            contacts.bulk_subscribe_topics(contact_ids=["c1"], topic_ids=["t1"])
 
 
 # ---------------------------------------------------------------------------
