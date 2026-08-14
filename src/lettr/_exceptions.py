@@ -61,6 +61,33 @@ class ConflictError(LettrError):
         super().__init__(message)
 
 
+class ContactAlreadyExistsError(ConflictError):
+    """Raised when creating a contact whose email is already in the audience.
+
+    HTTP 409 with ``error_code="resource_already_exists"`` on
+    ``POST /audience/contacts``.
+
+    This is a client-correctable condition, not an outage — **do not retry it.**
+    Update the existing contact with ``client.audience.contacts.update()``, or
+    use ``client.audience.contacts.bulk_create(..., update_existing=True)``.
+
+    Older API versions surfaced this as an HTTP 500 with the misleading
+    ``send_error`` code, which arrived as a :class:`ServerError`. Subclassing
+    :class:`ConflictError` keeps existing ``except ConflictError`` and
+    ``except LettrError`` handlers working unchanged.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str | None = None,
+        email: str | None = None,
+    ) -> None:
+        self.email = email
+        """The address that collided, when the SDK knows it."""
+        super().__init__(message, error_code)
+
+
 class BadRequestError(LettrError):
     """Raised for client-side errors (400)."""
 
