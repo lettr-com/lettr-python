@@ -500,9 +500,7 @@ class TestMemberships:
         mock_client.post.return_value = {
             "data": {"subscribed": 3, "already_subscribed": 1, "total_pairs": 4}
         }
-        result = contacts.bulk_subscribe_topics(
-            contact_ids=["c1", "c2"], topic_ids=["t1", "t2"]
-        )
+        result = contacts.bulk_subscribe_topics(contact_ids=["c1", "c2"], topic_ids=["t1", "t2"])
         assert isinstance(result, BulkTopicsSubscribeResult)
         assert result.subscribed == 3
         assert result.already_subscribed == 1
@@ -517,9 +515,7 @@ class TestMemberships:
         self, contacts: AudienceContacts, mock_client: MagicMock
     ) -> None:
         mock_client.delete.return_value = {"data": {"unsubscribed": 2, "total_pairs": 4}}
-        result = contacts.bulk_unsubscribe_topics(
-            contact_ids=["c1", "c2"], topic_ids=["t1", "t2"]
-        )
+        result = contacts.bulk_unsubscribe_topics(contact_ids=["c1", "c2"], topic_ids=["t1", "t2"])
         assert isinstance(result, BulkTopicsUnsubscribeResult)
         assert result.unsubscribed == 2
         # DELETE with a request body — the pairs to remove travel in the body.

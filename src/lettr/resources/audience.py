@@ -424,9 +424,7 @@ class AudienceContacts:
             ValueError: Neither ``emails`` nor ``contacts`` was provided.
         """
         if not emails and not contacts:
-            raise ValueError(
-                "bulk_create() needs at least one entry in either emails or contacts."
-            )
+            raise ValueError("bulk_create() needs at least one entry in either emails or contacts.")
 
         payload: dict[str, Any] = {}
         if emails:
