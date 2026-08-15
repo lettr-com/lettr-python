@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-15
+
+### Fixed
+- Corrected the segment condition documentation on `SegmentConditionGroup`: conditions **within a group** are joined by `OR`, and **groups** are joined by `AND` — i.e. `(A OR B) AND (C OR D)`. The previous docstring stated the inverse. No behaviour change — the API has always evaluated segments this way, and no code paths were touched. Worth a read if you built a segment against the old description, since it may target a wider or narrower audience than you intended.
+
 ## [1.5.0] - 2026-08-14
 
 Covers the reworked bulk contact import (TPL-2105) and the duplicate-create fix.
@@ -283,7 +288,8 @@ the exact same payloads.
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/lettr/lettr-python/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/lettr/lettr-python/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/lettr/lettr-python/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/lettr/lettr-python/compare/v1.2.0...v1.3.0
