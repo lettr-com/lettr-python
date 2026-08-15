@@ -610,7 +610,8 @@ class AudienceSegment:
     """An audience segment.
 
     ``condition_groups`` is kept as a list of raw dicts mirroring the
-    API shape (groups joined by OR, conditions within a group joined by AND).
+    API shape (conditions within a group joined by OR, groups joined by
+    AND) -- i.e. (A OR B) AND (C OR D).
     """
 
     id: str
