@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-09-10
+
+Brings this client level with lettr-php: template modules, the folders endpoint, preparation status, and idempotent sends. Everything is additive - code written against 1.5.1 keeps working and sends identical requests.
+
+### Added
+
+- **`client.folders.list()`** - the folders templates are filed into, each with its `purpose` and `templates_count`. This is what `templates.create(folder_id=...)` was missing: nothing else returned a folder id, so a caller either omitted it and accepted whichever folder the API picked, or hardcoded an integer read out of an app URL. Read-only by design - deleting a folder moves or deletes the templates inside it, so that stays in the app.
+- **Template `purpose`** (`"transactional" | "campaign"`) on create and on every template response, plus a `purpose` filter on `list()`. Only campaign templates can be picked by the campaign builder; only transactional ones can be sent as single emails.
+- **`preparation_status`** (`"pending" | "ready" | "failed"`) on every template response. Creating or updating a template defers image migration and HTML rendering to a background job; this says whether the content you sent is the content that will go out.
+
+  It is **not** the same question as "can I send this": after an *update* the previous render stays in place, so a `"pending"` template is still sendable - it is serving the old content.
+
+  A response without the key reads as `"ready"`, not `"pending"` - it comes from an API deployment that predates the field, where every template with HTML was simply usable, and `"pending"` would look like a stalled queue.
+- **`templates.list(folder_id=...)`** - one `per_page=100` call reconciles a whole bulk import instead of a detail call per template, each dragging the full HTML payload against the same rate limit. A folder outside the resolved project raises `NotFoundError` rather than returning an empty list, so a typo cannot be misread as "nothing is there yet".
+- **`emails.send(..., idempotency_key=...)`** - reuse the key when you retry and the API returns the original result instead of delivering a second email. `SendEmailResponse` gained `replayed`, true when that happened.
+
+  **You choose the key; the SDK never generates one.** It only works if both attempts use the same value, and the SDK does not retry - one `send()` is one HTTP request - so the retry is yours, and only you know two calls are the same logical send. A key generated inside `send()` would differ on every attempt and protect nothing.
+
+  A malformed key raises `ValidationError` **before any request goes out**. `is_valid_idempotency_key()` is exported for callers deriving keys from their own ids.
+- **`IdempotencyInProgressError`** and **`IdempotencyConflictError`**, both subclasses of `ConflictError`, because one is safe to retry and the other is not. The first carries `retry_after` and must be retried with the *same* key; the second means that key was used with a different payload and will fail identically forever.
+
+### Notes
+
+- Keys are scoped per team **and** API key, so the same string through a different API key is a different key. The provider retains one for 24 hours.
+- `ApiClient` gained `request_with_headers()` / `post_with_headers()` for the one place a response header carries meaning. `request()` and `post()` are unchanged.
+- `raise_for_status()` takes an optional third `headers` argument. Existing two-argument calls behave exactly as before.
+
 ## [1.5.1] - 2026-08-15
 
 ### Fixed

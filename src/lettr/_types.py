@@ -151,6 +151,11 @@ class SendEmailResponse:
     request_id: str
     accepted: int
     rejected: int
+    replayed: bool = False
+    """True when this replayed an earlier send under the same idempotency key.
+
+    No second email went out. It is still a success, not an error.
+    """
 
 
 @dataclass
@@ -418,6 +423,26 @@ class MergeTag:
     children: list[MergeTagChild] | None = None
 
 
+TemplatePurpose = Literal["transactional", "campaign"]
+"""Which module a template belongs to.
+
+The two do not mix: only ``campaign`` templates can be picked by the campaign
+builder, and only ``transactional`` ones can be sent as single emails.
+"""
+
+TemplatePreparationStatus = Literal["pending", "ready", "failed"]
+"""How far a template has got through preparation.
+
+Creating or updating a template through the API defers image migration and HTML
+rendering to a background job. On a create with JSON there is no HTML at all
+until it finishes; on an **update** the previous render stays in place, so the
+template is still sendable but is serving the *old* content.
+
+So ``"ready"`` answers "is what I sent what will go out", which is not the same
+question as "can I send this".
+"""
+
+
 @dataclass
 class Template:
     """An email template."""
@@ -434,6 +459,37 @@ class Template:
     html: str | None = None
     json: str | None = None
     merge_tags: list[MergeTag] | None = None
+    purpose: TemplatePurpose = "transactional"
+    preparation_status: TemplatePreparationStatus = "ready"
+
+
+@dataclass
+class Folder:
+    """A folder templates are filed into.
+
+    ``id`` is what :meth:`Templates.create` takes as ``folder_id``, so listing
+    folders is how a caller picks where a template lands instead of hardcoding
+    an integer read out of an app URL.
+    """
+
+    id: int
+    name: str
+    project_id: int
+    purpose: TemplatePurpose
+    templates_count: int
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class FolderList:
+    """Paginated list of folders."""
+
+    folders: list[Folder]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
 
 
 @dataclass

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 from .._client import ApiClient
+from .._idempotency import validate_idempotency_key
 from .._types import (
     Attachment,
     Email,
@@ -238,6 +239,7 @@ class Emails:
         substitution_data: dict[str, Any] | None = None,
         options: EmailOptions | None = None,
         attachments: Sequence[Attachment] | None = None,
+        idempotency_key: str | None = None,
     ) -> SendEmailResponse:
         """Send a transactional email.
 
@@ -265,16 +267,33 @@ class Emails:
             substitution_data: Variables for template substitution.
             options: Delivery options (tracking, etc.).
             attachments: File attachments.
+            idempotency_key: A key identifying one logical send. Reuse it when
+                you retry and the API returns the original result instead of
+                delivering a second email, with ``replayed`` set.
+
+                You choose the key; the SDK never generates one. It only works
+                if both attempts use the same value, and the SDK does not retry
+                - one ``send()`` is one HTTP request - so the retry is yours,
+                and only you know two calls are the same logical send.
+
+                1-255 characters of ``[A-Za-z0-9._-]``, validated before the
+                request.
 
         Returns:
             A :class:`SendEmailResponse` with ``request_id``, ``accepted``,
             and ``rejected`` counts.
 
         Raises:
-            ValidationError: If required fields are missing or invalid.
+            ValidationError: If required fields are missing or invalid, or
+                ``idempotency_key`` is malformed - raised locally, before any
+                request goes out.
             BadRequestError: If the sender domain is invalid or unconfigured.
             NotFoundError: If the template or project is not found.
             RateLimitError: If sending quota is exceeded.
+            IdempotencyInProgressError: If the original send for this key is
+                still processing. Retry with the **same** key.
+            IdempotencyConflictError: If this key was used with a different
+                payload. A caller bug - do not retry.
         """
         payload = _build_email_payload(
             from_email=from_email,
@@ -299,12 +318,31 @@ class Emails:
             attachments=attachments,
         )
 
-        body = self._client.post("/emails", json=payload)
+        # Without a key there is nothing to replay - SparkPost only
+        # deduplicates when one is present - so the plain path skips reading
+        # response headers entirely.
+        if idempotency_key is None:
+            body = self._client.post("/emails", json=payload)
+            data = body["data"]
+            return SendEmailResponse(
+                request_id=data["request_id"],
+                accepted=data["accepted"],
+                rejected=data["rejected"],
+            )
+
+        validate_idempotency_key(idempotency_key)
+
+        body, response_headers = self._client.post_with_headers(
+            "/emails",
+            json=payload,
+            headers={"Idempotency-Key": idempotency_key},
+        )
         data = body["data"]
         return SendEmailResponse(
             request_id=data["request_id"],
             accepted=data["accepted"],
             rejected=data["rejected"],
+            replayed=(response_headers.get("Idempotency-Replayed") or "").lower() == "true",
         )
 
     def list(

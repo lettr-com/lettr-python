@@ -46,38 +46,72 @@ class ApiClient:
         *,
         json: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
         """Send an HTTP request and return the decoded JSON body.
 
         Raises the appropriate :class:`LettrError` subclass on non-2xx
         responses.
         """
+        body, _ = self.request_with_headers(method, path, json=json, params=params, headers=headers)
+        return body
+
+    def request_with_headers(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[Any, httpx.Headers]:
+        """Like :meth:`request`, but also returns the response headers.
+
+        Separate rather than state on the client, so two calls cannot read each
+        other's headers. Only needed where a header carries meaning - today
+        that is ``Idempotency-Replayed`` on a send.
+        """
         # Strip None values from params
         if params:
             params = {k: v for k, v in params.items() if v is not None}
 
         try:
-            response = self._http.request(method, path, json=json, params=params)
+            response = self._http.request(method, path, json=json, params=params, headers=headers)
         except httpx.HTTPError as exc:
             raise LettrError(f"HTTP request failed: {exc}") from exc
 
         if response.status_code == 204:
-            return None
+            return None, response.headers
 
         try:
             body = response.json()
         except Exception:
-            raise_for_status(response.status_code, None)
-            return None
+            raise_for_status(response.status_code, None, response.headers)
+            return None, response.headers
 
-        raise_for_status(response.status_code, body)
-        return body
+        raise_for_status(response.status_code, body, response.headers)
+        return body, response.headers
 
     def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
         return self.request("GET", path, params=params)
 
-    def post(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
-        return self.request("POST", path, json=json)
+    def post(
+        self,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
+        return self.request("POST", path, json=json, headers=headers)
+
+    def post_with_headers(
+        self,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> tuple[Any, httpx.Headers]:
+        return self.request_with_headers("POST", path, json=json, headers=headers)
 
     def put(self, path: str, *, json: dict[str, Any] | None = None) -> Any:
         return self.request("PUT", path, json=json)

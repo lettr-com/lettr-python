@@ -191,3 +191,159 @@ class TestGetHtml:
         assert result.html == "<p>Hello</p>"
         assert result.merge_tags == []
         assert result.subject is None
+
+
+class TestPreparationStatusAndFolderFilter:
+    """Added in 1.6.0 - TPL-2543."""
+
+    def test_list_sends_the_folder_and_purpose_filters(self, mock_client) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "templates": [],
+                "pagination": {
+                    "total": 0,
+                    "per_page": 100,
+                    "current_page": 1,
+                    "last_page": 1,
+                },
+            }
+        }
+
+        Templates(mock_client).list(folder_id=10, purpose="campaign", per_page=100)
+
+        mock_client.get.assert_called_once_with(
+            "/templates",
+            params={"folder_id": 10, "purpose": "campaign", "per_page": 100},
+        )
+
+    def test_list_omits_the_new_params_when_unset(self, mock_client) -> None:
+        """An existing caller's request is unchanged."""
+        mock_client.get.return_value = {
+            "data": {
+                "templates": [],
+                "pagination": {
+                    "total": 0,
+                    "per_page": 25,
+                    "current_page": 1,
+                    "last_page": 1,
+                },
+            }
+        }
+
+        Templates(mock_client).list(project_id=5)
+
+        mock_client.get.assert_called_once_with("/templates", params={"project_id": 5})
+
+    def test_list_reads_the_preparation_status_of_every_row(self, mock_client) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "templates": [
+                    {
+                        "id": 1,
+                        "name": "Ready",
+                        "slug": "ready-one",
+                        "project_id": 5,
+                        "folder_id": 10,
+                        "purpose": "transactional",
+                        "preparation_status": "ready",
+                        "created_at": "2026-01-15T10:00:00+00:00",
+                        "updated_at": "2026-01-20T14:30:00+00:00",
+                    },
+                    {
+                        "id": 2,
+                        "name": "Working",
+                        "slug": "still-working",
+                        "project_id": 5,
+                        "folder_id": 10,
+                        "purpose": "campaign",
+                        "preparation_status": "pending",
+                        "created_at": "2026-01-15T10:00:00+00:00",
+                        "updated_at": "2026-01-20T14:30:00+00:00",
+                    },
+                ],
+                "pagination": {
+                    "total": 2,
+                    "per_page": 25,
+                    "current_page": 1,
+                    "last_page": 1,
+                },
+            }
+        }
+
+        templates = Templates(mock_client).list().templates
+
+        assert [t.preparation_status for t in templates] == ["ready", "pending"]
+        assert [t.purpose for t in templates] == ["transactional", "campaign"]
+
+    def test_a_response_without_the_fields_reads_as_ready(self, mock_client) -> None:
+        """An API deployment that predates the field had every template with
+        HTML simply usable, so `ready` is the honest default. `pending` would
+        look like a stalled queue and hang anything waiting for readiness."""
+        mock_client.get.return_value = {
+            "data": {
+                "templates": [
+                    {
+                        "id": 1,
+                        "name": "Legacy",
+                        "slug": "legacy",
+                        "project_id": 5,
+                        "folder_id": 10,
+                        "created_at": "2026-01-15T10:00:00+00:00",
+                        "updated_at": "2026-01-20T14:30:00+00:00",
+                    }
+                ],
+                "pagination": {
+                    "total": 1,
+                    "per_page": 25,
+                    "current_page": 1,
+                    "last_page": 1,
+                },
+            }
+        }
+
+        template = Templates(mock_client).list().templates[0]
+
+        assert template.preparation_status == "ready"
+        assert template.purpose == "transactional"
+
+    def test_create_sends_the_purpose_only_when_given(self, mock_client) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "id": 1,
+                "name": "October Newsletter",
+                "slug": "october-newsletter",
+                "project_id": 5,
+                "folder_id": 11,
+                "purpose": "campaign",
+                "preparation_status": "pending",
+                "active_version": 1,
+                "created_at": "2026-01-15T10:00:00+00:00",
+            }
+        }
+
+        result = Templates(mock_client).create(
+            name="October Newsletter", json="{}", purpose="campaign"
+        )
+
+        _, kwargs = mock_client.post.call_args
+        assert kwargs["json"]["purpose"] == "campaign"
+        assert result.purpose == "campaign"
+        # A JSON import has no HTML until the background job renders it.
+        assert result.preparation_status == "pending"
+
+    def test_create_omits_purpose_when_unset(self, mock_client) -> None:
+        mock_client.post.return_value = {
+            "data": {
+                "id": 1,
+                "name": "Welcome",
+                "slug": "welcome",
+                "project_id": 5,
+                "folder_id": 10,
+                "created_at": "2026-01-15T10:00:00+00:00",
+            }
+        }
+
+        Templates(mock_client).create(name="Welcome", html="<p>Hi</p>")
+
+        _, kwargs = mock_client.post.call_args
+        assert "purpose" not in kwargs["json"]
