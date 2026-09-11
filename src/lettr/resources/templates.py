@@ -12,6 +12,7 @@ from .._types import (
     TemplateHtml,
     TemplateList,
     TemplateMergeTags,
+    TemplatePurpose,
 )
 
 
@@ -52,6 +53,8 @@ class Templates:
         self,
         *,
         project_id: int | None = None,
+        folder_id: int | None = None,
+        purpose: TemplatePurpose | None = None,
         per_page: int | None = None,
         page: int | None = None,
     ) -> TemplateList:
@@ -60,15 +63,30 @@ class Templates:
         Args:
             project_id: Project ID to retrieve templates from.
                 If not provided, uses the team's default project.
+            folder_id: Narrow the list to one folder of that project. Discover
+                ids with :meth:`Folders.list`. One ``per_page=100`` call
+                reconciles a whole bulk import instead of a detail call per
+                template, each dragging the full HTML payload against the same
+                rate limit.
+            purpose: Narrow the list to one module. Omit for both.
             per_page: Results per page (1-100, default 25).
             page: Page number (default 1).
 
         Returns:
             A :class:`TemplateList` with templates and pagination info.
+
+        Raises:
+            NotFoundError: If the project is not found, or ``folder_id`` is not
+                in it - a folder outside the project is a 404 rather than an
+                empty list, so a typo cannot be misread as "nothing is there".
         """
         params: dict[str, Any] = {}
         if project_id is not None:
             params["project_id"] = project_id
+        if folder_id is not None:
+            params["folder_id"] = folder_id
+        if purpose is not None:
+            params["purpose"] = purpose
         if per_page is not None:
             params["per_page"] = per_page
         if page is not None:
@@ -85,6 +103,8 @@ class Templates:
                 slug=t["slug"],
                 project_id=t["project_id"],
                 folder_id=t["folder_id"],
+                purpose=t.get("purpose", "transactional"),
+                preparation_status=t.get("preparation_status", "ready"),
                 created_at=t["created_at"],
                 updated_at=t["updated_at"],
             )
@@ -124,6 +144,8 @@ class Templates:
             slug=d["slug"],
             project_id=d["project_id"],
             folder_id=d["folder_id"],
+            purpose=d.get("purpose", "transactional"),
+            preparation_status=d.get("preparation_status", "ready"),
             created_at=d["created_at"],
             updated_at=d.get("updated_at"),
             active_version=d.get("active_version"),
@@ -140,6 +162,7 @@ class Templates:
         json: str | None = None,
         project_id: int | None = None,
         folder_id: int | None = None,
+        purpose: TemplatePurpose | None = None,
     ) -> Template:
         """Create a new email template.
 
@@ -151,7 +174,11 @@ class Templates:
             html: HTML content. Mutually exclusive with ``json``.
             json: Topol JSON content. Mutually exclusive with ``html``.
             project_id: Project to create the template in.
-            folder_id: Folder to create the template in.
+            folder_id: Folder to create the template in. Must belong to the
+                same module as ``purpose``. Discover ids with
+                :meth:`Folders.list`.
+            purpose: Which module the template belongs to. Omit to let the API
+                decide, which today means ``"transactional"``.
 
         Returns:
             A :class:`Template` with the newly created template info.
@@ -169,6 +196,8 @@ class Templates:
             payload["project_id"] = project_id
         if folder_id is not None:
             payload["folder_id"] = folder_id
+        if purpose is not None:
+            payload["purpose"] = purpose
 
         body = self._client.post("/templates", json=payload)
         d = body["data"]
@@ -183,6 +212,8 @@ class Templates:
             slug=d["slug"],
             project_id=d["project_id"],
             folder_id=d["folder_id"],
+            purpose=d.get("purpose", "transactional"),
+            preparation_status=d.get("preparation_status", "ready"),
             active_version=d.get("active_version"),
             merge_tags=merge_tags,
             created_at=d["created_at"],
@@ -239,6 +270,8 @@ class Templates:
             slug=d["slug"],
             project_id=d["project_id"],
             folder_id=d["folder_id"],
+            purpose=d.get("purpose", "transactional"),
+            preparation_status=d.get("preparation_status", "ready"),
             active_version=d.get("active_version"),
             merge_tags=merge_tags,
             created_at=d["created_at"],

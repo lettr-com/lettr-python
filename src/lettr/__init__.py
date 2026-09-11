@@ -23,6 +23,8 @@ from ._exceptions import (
     ConflictError,
     ContactAlreadyExistsError,
     ForbiddenError,
+    IdempotencyConflictError,
+    IdempotencyInProgressError,
     LettrError,
     NotFoundError,
     RateLimitError,
@@ -73,6 +75,8 @@ from ._types import (
     EmailEventList,
     EmailList,
     EmailOptions,
+    Folder,
+    FolderList,
     GeoIp,
     HealthCheck,
     MergeTag,
@@ -86,13 +90,24 @@ from ._types import (
     TemplateHtml,
     TemplateList,
     TemplateMergeTags,
+    TemplatePreparationStatus,
+    TemplatePurpose,
     TopicSubscription,
     TopicSubscriptionState,
     UserAgentParsed,
     Webhook,
 )
 from ._version import __version__
-from .resources import Audience, Campaigns, Domains, Emails, Projects, Templates, Webhooks
+from .resources import (
+    Audience,
+    Campaigns,
+    Domains,
+    Emails,
+    Folders,
+    Projects,
+    Templates,
+    Webhooks,
+)
 
 __all__ = [
     # Version
@@ -105,6 +120,8 @@ __all__ = [
     "BadRequestError",
     "ConflictError",
     "ContactAlreadyExistsError",
+    "IdempotencyConflictError",
+    "IdempotencyInProgressError",
     "ForbiddenError",
     "NotFoundError",
     "RateLimitError",
@@ -159,12 +176,16 @@ __all__ = [
     "HealthCheck",
     "MergeTag",
     "MergeTagChild",
+    "Folder",
+    "FolderList",
     "Project",
     "ProjectList",
     "ScheduledEmail",
     "SendEmailResponse",
     "SpfValidationResult",
     "Template",
+    "TemplatePreparationStatus",
+    "TemplatePurpose",
     "TemplateHtml",
     "TemplateList",
     "TemplateMergeTags",
@@ -237,6 +258,9 @@ class Lettr:
 
         self.projects = Projects(self._client)
         """Project management operations."""
+
+        self.folders = Folders(self._client)
+        """Template folder listing - where a usable ``folder_id`` comes from."""
 
         self.audience = Audience(self._client)
         """Audience management — lists, contacts, topics, properties, segments."""
