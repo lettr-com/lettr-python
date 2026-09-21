@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Sequence
 
 from .._client import ApiClient
@@ -16,9 +17,12 @@ from .._types import (
     EmailOptions,
     GeoIp,
     ScheduledEmail,
+    ScheduledEmailPage,
+    ScheduledEmailState,
     SendEmailResponse,
     UserAgentParsed,
     _from_dict,
+    _pagination_kwargs,
 )
 
 
@@ -115,17 +119,32 @@ def _parse_email_event(r: dict[str, Any]) -> EmailEvent:
 
 
 def _parse_scheduled_email(data: dict[str, Any]) -> ScheduledEmail:
-    """Parse a raw dict into a ScheduledEmail."""
+    """Parse a raw dict into a ScheduledEmail.
+
+    Emails scheduled before Lettr owned the schedule are still readable by
+    their provider transmission id, and the API answers those from delivery
+    events in the older shape: no ``request_id``, and none of the fields that
+    only Lettr's own record carries. So every key that one of the two shapes
+    lacks is read with ``.get``, and ``request_id`` falls back to the
+    transmission id — it must always hold the id that addresses the email the
+    caller asked about, whichever shape came back.
+    """
+    transmission_id = data.get("transmission_id")
     return ScheduledEmail(
-        transmission_id=data["transmission_id"],
+        transmission_id=transmission_id,
         state=data["state"],
         from_email=data["from"],
-        subject=data["subject"],
-        recipients=data["recipients"],
-        num_recipients=data["num_recipients"],
-        events=[_parse_email_event(e) for e in data["events"]],
+        subject=data.get("subject"),
+        recipients=data.get("recipients", []),
+        num_recipients=data.get("num_recipients", 0),
+        events=[_parse_email_event(e) for e in data.get("events", [])],
         scheduled_at=data.get("scheduled_at"),
         from_name=data.get("from_name"),
+        request_id=data.get("request_id") or transmission_id or "",
+        accepted=data.get("accepted", 0),
+        rejected=data.get("rejected", 0),
+        tag=data.get("tag"),
+        failure_reason=data.get("failure_reason"),
     )
 
 
@@ -499,7 +518,7 @@ class Emails:
         *,
         from_email: str,
         to: Sequence[str],
-        scheduled_at: str,
+        scheduled_at: datetime | str,
         subject: str | None = None,
         html: str | None = None,
         text: str | None = None,
@@ -518,13 +537,21 @@ class Emails:
         substitution_data: dict[str, Any] | None = None,
         options: EmailOptions | None = None,
         attachments: Sequence[Attachment] | None = None,
-    ) -> SendEmailResponse:
+    ) -> ScheduledEmail:
         """Schedule a transactional email for future delivery.
+
+        Lettr holds the email and only hands it to the delivery provider when
+        it is due, so it stays cancellable until then.
 
         Args:
             from_email: Sender email address.
             to: List of recipient email addresses.
-            scheduled_at: Scheduled delivery time (ISO 8601).
+            scheduled_at: Delivery time, between 5 minutes and 30 days from
+                now. Accepts either an ISO 8601 string or a
+                :class:`~datetime.datetime` (rendered via ``.isoformat()``).
+                Include a timezone offset (e.g. ``+02:00`` or ``Z``); naive
+                values are interpreted as UTC. The window is enforced by the
+                API, not locally.
             subject: Email subject line. Required unless using a template.
             html: HTML content of the email.
             text: Plain text content of the email.
@@ -545,12 +572,14 @@ class Emails:
             attachments: File attachments.
 
         Returns:
-            A :class:`SendEmailResponse` with ``request_id``, ``accepted``,
-            and ``rejected`` counts. Use :meth:`get_scheduled` with the
-            ``request_id`` to retrieve the full scheduled transmission.
+            The :class:`ScheduledEmail` as Lettr recorded it. Keep its
+            ``request_id`` — that is what :meth:`get_scheduled` and
+            :meth:`cancel_scheduled` take. Its ``transmission_id`` is still
+            ``None``: the provider has not seen the email yet.
 
         Raises:
-            ValidationError: If required fields are missing or invalid.
+            ValidationError: If required fields are missing or invalid, or
+                ``scheduled_at`` falls outside the 5-minute-to-30-day window.
             ForbiddenError: If scheduling is not permitted.
             RateLimitError: If sending quota is exceeded.
         """
@@ -576,41 +605,81 @@ class Emails:
             options=options,
             attachments=attachments,
         )
-        payload["scheduled_at"] = scheduled_at
-
-        body = self._client.post("/emails/scheduled", json=payload)
-        data = body["data"]
-        return SendEmailResponse(
-            request_id=data["request_id"],
-            accepted=data["accepted"],
-            rejected=data["rejected"],
+        payload["scheduled_at"] = (
+            scheduled_at.isoformat() if isinstance(scheduled_at, datetime) else scheduled_at
         )
 
-    def get_scheduled(self, transmission_id: str) -> ScheduledEmail:
-        """Get details of a scheduled email transmission.
-
-        Args:
-            transmission_id: The transmission ID.
-
-        Returns:
-            A :class:`ScheduledEmail` with the transmission details.
-
-        Raises:
-            NotFoundError: If the transmission is not found.
-            ForbiddenError: If access is not permitted.
-        """
-        body = self._client.get(f"/emails/scheduled/{transmission_id}")
+        body = self._client.post("/emails/scheduled", json=payload)
         return _parse_scheduled_email(body["data"])
 
-    def cancel_scheduled(self, transmission_id: str) -> None:
-        """Cancel a scheduled email transmission before it is sent.
+    def list_scheduled(
+        self,
+        *,
+        status: ScheduledEmailState | None = None,
+        per_page: int | None = None,
+        page: int | None = None,
+    ) -> ScheduledEmailPage:
+        """List scheduled emails with pagination.
 
         Args:
-            transmission_id: The transmission ID to cancel.
+            status: Only return emails in this state.
+            per_page: Results per page (1-100, default 25).
+            page: Page number, 1-based.
+
+        Returns:
+            A :class:`ScheduledEmailPage` with the emails and pagination info.
+        """
+        params: dict[str, Any] = {}
+        if status is not None:
+            params["status"] = status
+        if per_page is not None:
+            params["per_page"] = per_page
+        if page is not None:
+            params["page"] = page
+
+        body = self._client.get("/emails/scheduled", params=params)
+        data = body["data"]
+        return ScheduledEmailPage(
+            scheduled_emails=[_parse_scheduled_email(item) for item in data["scheduled_emails"]],
+            **_pagination_kwargs(data["pagination"]),
+        )
+
+    def get_scheduled(self, request_id: str) -> ScheduledEmail:
+        """Get a scheduled email.
+
+        Args:
+            request_id: The ``request_id`` returned by :meth:`schedule` — the
+                ``sch_``-prefixed id of Lettr's own record, *not* the
+                ``transmission_id`` that webhook events carry.
+
+                A transmission id from before Lettr owned the schedule is
+                still accepted and answered from delivery events, in which
+                case the result's ``request_id`` echoes that id back.
+
+        Returns:
+            A :class:`ScheduledEmail`.
 
         Raises:
-            NotFoundError: If the transmission is not found.
-            ConflictError: If the transmission has already been sent.
+            NotFoundError: If the scheduled email is not found.
+            ForbiddenError: If access is not permitted.
+        """
+        body = self._client.get(f"/emails/scheduled/{request_id}")
+        return _parse_scheduled_email(body["data"])
+
+    def cancel_scheduled(self, request_id: str) -> ScheduledEmail:
+        """Cancel a scheduled email before it is sent.
+
+        Args:
+            request_id: The ``request_id`` returned by :meth:`schedule`.
+
+        Returns:
+            The cancelled :class:`ScheduledEmail`, with ``state`` now
+            ``"cancelled"`` and ``accepted`` back down to 0.
+
+        Raises:
+            NotFoundError: If the scheduled email is not found.
+            ConflictError: If it has already been handed to the provider.
             ForbiddenError: If cancellation is not permitted.
         """
-        self._client.delete(f"/emails/scheduled/{transmission_id}")
+        body = self._client.delete(f"/emails/scheduled/{request_id}")
+        return _parse_scheduled_email(body["data"])
