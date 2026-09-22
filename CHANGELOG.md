@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-22
+
 Lettr now owns the schedule for scheduled emails. It used to hand them straight to SparkPost, so the "scheduled transmission" was the provider's object and the provider's id was the only id there was. SparkPost retired per-transmission GET and DELETE, which would have taken read and cancel down with it, so Lettr keeps the email itself and only hands it over when it is due. That moves the id, adds a second one, and gives cancel something to return - so this release is **not** purely additive.
 
 ### Changed
@@ -344,7 +346,8 @@ the exact same payloads.
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/lettr/lettr-python/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/lettr/lettr-python/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/lettr/lettr-python/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/lettr/lettr-python/compare/v1.4.0...v1.5.0
