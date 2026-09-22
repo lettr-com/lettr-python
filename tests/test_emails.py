@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,6 +14,7 @@ from lettr._types import (
     EmailList,
     EmailOptions,
     ScheduledEmail,
+    ScheduledEmailPage,
     SendEmailResponse,
 )
 from lettr.resources.emails import Emails
@@ -313,15 +315,33 @@ class TestListEvents:
         assert params["bounce_classes"] == "10,30"
 
 
+def _scheduled(**overrides: object) -> dict:
+    """Build one scheduled email as the API returns it now."""
+    base = {
+        "request_id": "sch_01M322YMWVCZ4RNYXHMSSMDTM1",
+        "transmission_id": None,
+        "state": "scheduled",
+        "scheduled_at": "2026-09-21T15:37:10Z",
+        "from": "sender@example.com",
+        "from_name": None,
+        "subject": "Scheduled Newsletter",
+        "recipients": ["recipient@example.com"],
+        "num_recipients": 1,
+        "accepted": 1,
+        "rejected": 0,
+        "tag": None,
+        "failure_reason": None,
+        "events": [],
+    }
+    base.update(overrides)
+    return base
+
+
 class TestSchedule:
     def test_schedule_email(self, emails: Emails, mock_client: MagicMock) -> None:
         mock_client.post.return_value = {
             "message": "Email scheduled for delivery.",
-            "data": {
-                "request_id": "12345678901234567890",
-                "accepted": 1,
-                "rejected": 0,
-            },
+            "data": _scheduled(subject="Later", tag="scheduled-test"),
         }
 
         result = emails.schedule(
@@ -329,56 +349,108 @@ class TestSchedule:
             to=["c@d.com"],
             subject="Later",
             html="<p>Hi</p>",
-            scheduled_at="2025-12-01T10:00:00Z",
+            scheduled_at="2026-12-01T10:00:00Z",
             tag="scheduled-test",
         )
 
-        assert isinstance(result, SendEmailResponse)
-        assert result.request_id == "12345678901234567890"
+        assert isinstance(result, ScheduledEmail)
+        assert result.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+        assert result.transmission_id is None
+        assert result.state == "scheduled"
         assert result.accepted == 1
         assert result.rejected == 0
+        assert result.tag == "scheduled-test"
 
         payload = mock_client.post.call_args.kwargs["json"]
-        assert payload["scheduled_at"] == "2025-12-01T10:00:00Z"
+        assert payload["scheduled_at"] == "2026-12-01T10:00:00Z"
         assert payload["tag"] == "scheduled-test"
         mock_client.post.assert_called_once()
         assert mock_client.post.call_args.args[0] == "/emails/scheduled"
+
+    def test_schedule_accepts_datetime(self, emails: Emails, mock_client: MagicMock) -> None:
+        mock_client.post.return_value = {"data": _scheduled()}
+
+        emails.schedule(
+            from_email="a@b.com",
+            to=["c@d.com"],
+            subject="Later",
+            html="<p>Hi</p>",
+            scheduled_at=datetime(2026, 12, 1, 10, 0, tzinfo=timezone.utc),
+        )
+
+        payload = mock_client.post.call_args.kwargs["json"]
+        assert payload["scheduled_at"] == "2026-12-01T10:00:00+00:00"
 
 
 class TestGetScheduled:
     def test_get_scheduled(self, emails: Emails, mock_client: MagicMock) -> None:
         mock_client.get.return_value = {
             "message": "Scheduled transmission retrieved successfully.",
-            "data": {
-                "transmission_id": "tr_123",
-                "state": "submitted",
-                "scheduled_at": "2025-12-01T10:00:00Z",
-                "from": "sender@example.com",
-                "from_name": "Sender",
-                "subject": "Scheduled Newsletter",
-                "recipients": ["recipient@example.com"],
-                "num_recipients": 1,
-                "events": [],
-            },
+            "data": _scheduled(from_name="Sender"),
         }
 
-        result = emails.get_scheduled("tr_123")
+        result = emails.get_scheduled("sch_01M322YMWVCZ4RNYXHMSSMDTM1")
         assert isinstance(result, ScheduledEmail)
-        assert result.transmission_id == "tr_123"
-        assert result.state == "submitted"
+        assert result.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+        assert result.state == "scheduled"
         assert result.from_email == "sender@example.com"
         assert result.from_name == "Sender"
         assert result.subject == "Scheduled Newsletter"
         assert result.recipients == ["recipient@example.com"]
         assert result.num_recipients == 1
         assert result.events == []
-        mock_client.get.assert_called_once_with("/emails/scheduled/tr_123")
+        mock_client.get.assert_called_once_with("/emails/scheduled/sch_01M322YMWVCZ4RNYXHMSSMDTM1")
 
-    def test_get_scheduled_with_events(self, emails: Emails, mock_client: MagicMock) -> None:
-        """Regression: events array contains EmailEvent objects, not strings."""
+    def test_transmission_id_is_none_until_sent(
+        self, emails: Emails, mock_client: MagicMock
+    ) -> None:
+        """The provider id webhooks carry does not exist yet while queued."""
+        mock_client.get.return_value = {"data": _scheduled()}
+
+        result = emails.get_scheduled("sch_01M322YMWVCZ4RNYXHMSSMDTM1")
+        assert result.transmission_id is None
+        assert result.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+
+    def test_transmission_id_present_once_sent(
+        self, emails: Emails, mock_client: MagicMock
+    ) -> None:
+        mock_client.get.return_value = {
+            "data": _scheduled(state="sent", transmission_id="7628974099477333734")
+        }
+
+        result = emails.get_scheduled("sch_01M322YMWVCZ4RNYXHMSSMDTM1")
+        assert result.state == "sent"
+        assert result.transmission_id == "7628974099477333734"
+        assert result.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+
+    @pytest.mark.parametrize("state", ["scheduled", "sending", "sent", "cancelled", "failed"])
+    def test_every_state_parses(self, emails: Emails, mock_client: MagicMock, state: str) -> None:
+        mock_client.get.return_value = {"data": _scheduled(state=state)}
+
+        assert emails.get_scheduled("sch_1").state == state
+
+    def test_failure_reason(self, emails: Emails, mock_client: MagicMock) -> None:
+        mock_client.get.return_value = {
+            "data": _scheduled(
+                state="failed", accepted=0, rejected=1, failure_reason="Sending domain removed."
+            )
+        }
+
+        result = emails.get_scheduled("sch_1")
+        assert result.failure_reason == "Sending domain removed."
+        assert result.rejected == 1
+
+    def test_get_scheduled_legacy_shape(self, emails: Emails, mock_client: MagicMock) -> None:
+        """A pre-rework transmission id is answered from delivery events.
+
+        That payload predates Lettr owning the schedule, so it has no
+        ``request_id`` and none of the fields Lettr's own record carries.
+        Parsing must not blow up, and ``request_id`` has to fall back to the
+        id the caller actually asked about.
+        """
         mock_client.get.return_value = {
             "data": {
-                "transmission_id": "tr_123",
+                "transmission_id": "7628974099477333734",
                 "state": "delivered",
                 "scheduled_at": None,
                 "from": "sender@example.com",
@@ -397,16 +469,81 @@ class TestGetScheduled:
             }
         }
 
-        result = emails.get_scheduled("tr_123")
+        result = emails.get_scheduled("7628974099477333734")
+        assert result.request_id == "7628974099477333734"
+        assert result.transmission_id == "7628974099477333734"
+        assert result.accepted == 0
+        assert result.rejected == 0
+        assert result.tag is None
+        assert result.failure_reason is None
         assert len(result.events) == 1
         assert result.events[0].type == "delivery"
         assert result.events[0].rcpt_to == "recipient@example.com"
 
 
+class TestListScheduled:
+    def test_list_scheduled(self, emails: Emails, mock_client: MagicMock) -> None:
+        mock_client.get.return_value = {
+            "message": "Scheduled emails retrieved successfully.",
+            "data": {
+                "scheduled_emails": [
+                    _scheduled(),
+                    _scheduled(request_id="sch_2", state="cancelled", accepted=0),
+                ],
+                "pagination": {
+                    "total": 2,
+                    "per_page": 2,
+                    "current_page": 1,
+                    "last_page": 1,
+                },
+            },
+        }
+
+        result = emails.list_scheduled()
+        assert isinstance(result, ScheduledEmailPage)
+        assert len(result.scheduled_emails) == 2
+        assert result.scheduled_emails[0].state == "scheduled"
+        assert result.scheduled_emails[1].request_id == "sch_2"
+        assert result.scheduled_emails[1].state == "cancelled"
+        assert result.total == 2
+        assert result.per_page == 2
+        assert result.current_page == 1
+        assert result.last_page == 1
+        assert mock_client.get.call_args.args[0] == "/emails/scheduled"
+        assert mock_client.get.call_args.kwargs["params"] == {}
+
+    def test_list_scheduled_with_filters(self, emails: Emails, mock_client: MagicMock) -> None:
+        mock_client.get.return_value = {
+            "data": {
+                "scheduled_emails": [],
+                "pagination": {
+                    "total": 0,
+                    "per_page": 10,
+                    "current_page": 2,
+                    "last_page": 0,
+                },
+            }
+        }
+
+        result = emails.list_scheduled(status="cancelled", per_page=10, page=2)
+        assert result.scheduled_emails == []
+
+        params = mock_client.get.call_args.kwargs["params"]
+        assert params == {"status": "cancelled", "per_page": 10, "page": 2}
+
+
 class TestCancelScheduled:
     def test_cancel_scheduled(self, emails: Emails, mock_client: MagicMock) -> None:
-        mock_client.delete.return_value = None
+        mock_client.delete.return_value = {
+            "message": "Scheduled transmission cancelled successfully.",
+            "data": _scheduled(state="cancelled", accepted=0),
+        }
 
-        result = emails.cancel_scheduled("tr_123")
-        assert result is None
-        mock_client.delete.assert_called_once_with("/emails/scheduled/tr_123")
+        result = emails.cancel_scheduled("sch_01M322YMWVCZ4RNYXHMSSMDTM1")
+        assert isinstance(result, ScheduledEmail)
+        assert result.state == "cancelled"
+        assert result.accepted == 0
+        assert result.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+        mock_client.delete.assert_called_once_with(
+            "/emails/scheduled/sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+        )

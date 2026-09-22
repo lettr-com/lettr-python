@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from lettr._types import EmailOptions, GeoIp, ScheduledEmail, UserAgentParsed
+from lettr._types import (
+    EmailOptions,
+    GeoIp,
+    ScheduledEmail,
+    ScheduledEmailPage,
+    UserAgentParsed,
+)
 
 
 class TestEmailOptions:
@@ -55,18 +61,52 @@ class TestUserAgentParsed:
 class TestScheduledEmail:
     def test_creation(self) -> None:
         se = ScheduledEmail(
-            transmission_id="tr_123",
-            state="submitted",
+            transmission_id=None,
+            state="scheduled",
             from_email="sender@example.com",
             subject="Hello",
             recipients=["a@b.com"],
             num_recipients=1,
             events=[],
-            scheduled_at="2025-12-01T10:00:00Z",
+            scheduled_at="2026-12-01T10:00:00Z",
+            request_id="sch_01M322YMWVCZ4RNYXHMSSMDTM1",
+            accepted=1,
         )
-        assert se.transmission_id == "tr_123"
-        assert se.state == "submitted"
+        assert se.request_id == "sch_01M322YMWVCZ4RNYXHMSSMDTM1"
+        assert se.transmission_id is None
+        assert se.state == "scheduled"
         assert se.from_email == "sender@example.com"
         assert se.num_recipients == 1
+        assert se.accepted == 1
         assert se.events == []
         assert se.from_name is None
+
+    def test_new_fields_default(self) -> None:
+        """A 1.6.0-shaped constructor call still works, unchanged."""
+        se = ScheduledEmail(
+            transmission_id="7628974099477333734",
+            state="delivered",
+            from_email="sender@example.com",
+            subject="Hello",
+            recipients=["a@b.com"],
+            num_recipients=1,
+            events=[],
+        )
+        assert se.request_id == ""
+        assert se.accepted == 0
+        assert se.rejected == 0
+        assert se.tag is None
+        assert se.failure_reason is None
+
+
+class TestScheduledEmailPage:
+    def test_creation(self) -> None:
+        page = ScheduledEmailPage(
+            scheduled_emails=[],
+            total=0,
+            per_page=25,
+            current_page=1,
+            last_page=0,
+        )
+        assert page.scheduled_emails == []
+        assert page.per_page == 25

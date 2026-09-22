@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Lettr now owns the schedule for scheduled emails. It used to hand them straight to SparkPost, so the "scheduled transmission" was the provider's object and the provider's id was the only id there was. SparkPost retired per-transmission GET and DELETE, which would have taken read and cancel down with it, so Lettr keeps the email itself and only hands it over when it is due. That moves the id, adds a second one, and gives cancel something to return - so this release is **not** purely additive.
+
+### Changed
+
+- **`emails.schedule()` returns `ScheduledEmail`**, not `SendEmailResponse`. The API now answers a create with the whole record rather than `{request_id, accepted, rejected}`, so there is no reason to make a caller fetch what it was already told. `result.request_id` and `result.accepted` still read the same; anything annotated `SendEmailResponse` needs its type updated.
+- **`emails.cancel_scheduled()` returns the cancelled `ScheduledEmail`** instead of `None`. It is how you confirm the cancel landed - `state` is `"cancelled"` and `accepted` has dropped to 0 - without a second round trip. Code that ignores the return value is unaffected.
+- **`get_scheduled()` and `cancel_scheduled()` take `request_id`, renamed from `transmission_id`.** Positional callers are unaffected. The rename is the point: `transmission_id` now names a *different* field on the same object, and passing one where a `request_id` belongs is a 404, so the old parameter name would have sent callers to the wrong value.
+- **`ScheduledEmail.transmission_id` is now `str | None`.** It is the *provider's* id, and the provider has not seen the email until it is due, so it is `None` for the whole life of a scheduled email and fills in only once it is sent.
+
+### Added
+
+- **`ScheduledEmail.request_id`** - Lettr's own id, `sch_`-prefixed, and the one that addresses the email in `get_scheduled()` and `cancel_scheduled()`.
+
+  The two ids are not interchangeable and neither is redundant: `request_id` addresses the email, while `transmission_id` is the value that appears on **webhook events**, so it is the one to correlate incoming webhooks against. An integration that reacts to delivery has to keep both and join them.
+- **`ScheduledEmail.accepted`, `.rejected`, `.tag` and `.failure_reason`**, mirroring what the API returns. `failure_reason` is set only in the `"failed"` state.
+- **`emails.list_scheduled(status=..., per_page=..., page=...)`** returning a `ScheduledEmailPage` - the emails plus the usual `total` / `per_page` / `current_page` / `last_page`. Previously the only handle on a scheduled email was an id you had stored yourself, and losing it meant losing the email. `status` takes any of the five states, `per_page` is 1-100 (default 25), `page` is 1-based.
+- **`ScheduledEmailState`** - `"scheduled" | "sending" | "sent" | "cancelled" | "failed"`, the type of the `status` filter. Only `"scheduled"` is still cancellable; `"sending"` means the handover has already started.
+
+  `ScheduledEmail.state` itself stays a plain `str`, deliberately. A legacy read (below) derives its state from delivery events and can answer `"delivered"` or `"bounced"`, neither of which is one of Lettr's five - narrowing the field to the Literal would turn a correct `== "delivered"` check into a type error.
+- **`schedule(scheduled_at=...)` accepts a `datetime`** as well as an ISO 8601 string, rendered with `.isoformat()`, matching `campaigns.schedule()`. Include a timezone offset; naive values are read as UTC.
+
+### Fixed
+
+- **Reading a pre-rework scheduled email no longer raises `KeyError`.** An old SparkPost transmission id passed to `get_scheduled()` is still answered, but out of delivery events and in the older nine-key shape: no `request_id`, and none of `accepted`, `rejected`, `tag` or `failure_reason`. The parser demanded those keys, so every such read crashed. They are all optional now, and `request_id` falls back to `transmission_id` so it always holds the id that addresses the email you asked about, whichever shape came back.
+
+### Notes
+
+- **The scheduling window is 5 minutes to 30 days**, now documented on `schedule()`. The API enforces it; `schedule()` still does no local validation of any kind, so a value outside the window raises `ValidationError` from the response rather than before the request goes out.
+
 ## [1.6.0] - 2026-09-10
 
 Brings this client level with lettr-php: template modules, the folders endpoint, preparation status, and idempotent sends. Everything is additive - code written against 1.5.1 keeps working and sends identical requests.
@@ -315,7 +344,8 @@ the exact same payloads.
   `ValidationError`, `NotFoundError`, `ConflictError`, `BadRequestError`,
   `ServerError`)
 
-[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/lettr/lettr-python/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/lettr/lettr-python/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/lettr/lettr-python/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/lettr/lettr-python/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/lettr/lettr-python/compare/v1.3.0...v1.4.0

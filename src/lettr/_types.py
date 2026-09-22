@@ -262,19 +262,66 @@ class EmailEventList:
     date_to: str | None = None
 
 
+ScheduledEmailState = Literal["scheduled", "sending", "sent", "cancelled", "failed"]
+"""Where a scheduled email has got to.
+
+Lettr holds the email itself until it is due, so these are Lettr's own states,
+not the provider's. Only ``"scheduled"`` can still be cancelled; ``"sending"``
+means the handover to the provider has started and delivery is now tracked
+through events.
+"""
+
+
 @dataclass
 class ScheduledEmail:
-    """A scheduled email transmission (same shape as :class:`EmailDetail`)."""
+    """An email Lettr is holding until its delivery time.
 
-    transmission_id: str
+    Two ids, and they are not interchangeable:
+
+    ``request_id`` is Lettr's own id (``sch_``-prefixed) and the one that
+    addresses this email in :meth:`~lettr.Emails.get_scheduled` and
+    :meth:`~lettr.Emails.cancel_scheduled`.
+
+    ``transmission_id`` is the provider's, so it is ``None`` until the email is
+    actually handed over. It is the id that appears on webhook events, which
+    makes it the one to correlate incoming webhooks against.
+    """
+
+    transmission_id: str | None
     state: str
+    """One of :data:`ScheduledEmailState`, but typed ``str`` deliberately.
+
+    An email scheduled before Lettr owned the schedule is read back out of
+    delivery events, and its state is derived from those events
+    (``"delivered"``, ``"bounced"``) rather than being one of Lettr's five.
+    Narrowing this to the Literal would make a correct ``== "delivered"``
+    check a type error.
+    """
+
     from_email: str
-    subject: str
+    subject: str | None
     recipients: list[str]
     num_recipients: int
     events: list[EmailEvent]
     scheduled_at: str | None = None
     from_name: str | None = None
+    request_id: str = ""
+    accepted: int = 0
+    rejected: int = 0
+    tag: str | None = None
+    failure_reason: str | None = None
+    """Why the send failed, set only in the ``"failed"`` state."""
+
+
+@dataclass
+class ScheduledEmailPage:
+    """Paginated list of scheduled emails."""
+
+    scheduled_emails: list[ScheduledEmail]
+    total: int
+    per_page: int
+    current_page: int
+    last_page: int
 
 
 # ---------------------------------------------------------------------------
